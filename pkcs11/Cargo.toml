@@ -24,7 +24,6 @@ readme = "README.md"
 keywords = ["pkcs11", "cryptoki"]
 categories = ["external-ffi-bindings", "cryptography", "hardware-support"]
 license = "Apache-2.0"
-license-file = "LICENSE"
 exclude = [
     "pkcs11-docs/**",
 ]
