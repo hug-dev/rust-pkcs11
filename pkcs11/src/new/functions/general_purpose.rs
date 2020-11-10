@@ -2,7 +2,7 @@ use crate::new::types::function::Rv;
 use crate::new::types::locking::CInitializeArgs;
 use crate::new::Pkcs11;
 use crate::new::{Error, Result};
-use pkcs11_sys::CK_C_INITIALIZE_ARGS;
+use pkcs11_sys::{CKR_OK, CK_C_INITIALIZE_ARGS};
 use std::ptr;
 
 impl Pkcs11 {
@@ -16,7 +16,7 @@ impl Pkcs11 {
             )
         } {
             CKR_OK => Ok(()),
-            err => Err(Error::Pkcs11(Rv::Ok)),
+            _err => Err(Error::Pkcs11(Rv::Ok)),
         }
     }
 

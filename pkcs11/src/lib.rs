@@ -57,10 +57,7 @@ impl CkFrom<bool> for CK_BBOOL {
 
 impl CkFrom<CK_BBOOL> for bool {
     fn from(b: CK_BBOOL) -> bool {
-        match b {
-            0 => false,
-            _ => true,
-        }
+        !matches!(b, 0)
     }
 }
 

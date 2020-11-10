@@ -2,6 +2,7 @@ pub mod functions;
 pub mod objects;
 pub mod types;
 
+use pkcs11_sys::CKR_OK;
 use std::mem;
 use std::path::Path;
 
@@ -20,7 +21,7 @@ impl Pkcs11 {
                 .map_err(|e| Error::LibraryLoading { err: e })?;
             let mut list = mem::MaybeUninit::uninit();
 
-            if let Err(e) = pkcs11_lib.can_call().C_GetFunctionList() {
+            if pkcs11_lib.can_call().C_GetFunctionList().is_err() {
                 return Err(Error::LibraryLoading {
                     err: libloading::Error::DlOpenUnknown,
                 });
@@ -28,7 +29,7 @@ impl Pkcs11 {
 
             match pkcs11_lib.C_GetFunctionList(list.as_mut_ptr()) {
                 CKR_OK => (),
-                err => return Err(Error::Pkcs11(types::function::Rv::Ok)),
+                _err => return Err(Error::Pkcs11(types::function::Rv::Ok)),
             }
 
             let list_ptr = *list.as_ptr();

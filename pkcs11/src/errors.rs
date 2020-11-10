@@ -40,6 +40,9 @@ pub enum Error {
     /// and one tries to return the value of a `types::CK_ATTRIBUTE` with one of its associated
     /// getter method (e.g. `get_bytes`).
     UnavailableInformation,
+
+    /// This error marks a feature that is not yet supported by the PKCS11 Rust abstraction layer.
+    NotSupported,
 }
 
 impl From<libloading::Error> for Error {

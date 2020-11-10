@@ -1,3 +1,4 @@
+use crate::errors::Error;
 use pkcs11_sys::CKA_BASE;
 use pkcs11_sys::CKA_CLASS;
 use pkcs11_sys::CKA_COPYABLE;
@@ -25,8 +26,8 @@ use pkcs11_sys::CKA_WRAP;
 use pkcs11_sys::CK_OBJECT_CLASS_PTR;
 use pkcs11_sys::CK_VOID_PTR;
 use pkcs11_sys::{
-    CK_ATTRIBUTE, CK_ATTRIBUTE_TYPE, CK_BBOOL, CK_BYTE, CK_KEY_TYPE, CK_OBJECT_CLASS, CK_ULONG,
-    CK_UTF8CHAR,
+    CKR_SESSION_HANDLE_INVALID, CK_ATTRIBUTE, CK_ATTRIBUTE_TYPE, CK_BBOOL, CK_BYTE, CK_KEY_TYPE,
+    CK_OBJECT_CLASS, CK_OBJECT_HANDLE, CK_ULONG, CK_UTF8CHAR,
 };
 use std::convert::TryInto;
 
@@ -195,46 +196,16 @@ impl Attribute<'_> {
             | Attribute::Unwrap(b)
             | Attribute::Verify(b)
             | Attribute::VerifyRecover(b)
-            | Attribute::Wrap(b) => {
-                let b_ptr = *b as *mut _ as CK_VOID_PTR;
-                b_ptr
-            }
-            Attribute::Base(byte) => {
-                let byte_ptr = *byte as *mut _ as CK_VOID_PTR;
-                byte_ptr
-            }
-            Attribute::Class(object_class) => {
-                let object_class_ptr = *object_class as CK_OBJECT_CLASS_PTR as CK_VOID_PTR;
-                object_class_ptr
-            }
-            Attribute::KeyType(key_type) => {
-                let key_type_ptr = *key_type as *mut _ as CK_VOID_PTR;
-                key_type_ptr
-            }
-            Attribute::Label(label) => {
-                let label_ptr = label.as_ptr() as CK_VOID_PTR;
-                label_ptr
-            }
-            Attribute::ModulusBits(bits) => {
-                let bits_ptr = *bits as *mut _ as CK_VOID_PTR;
-                bits_ptr
-            }
-            Attribute::Prime(bytes) => {
-                let bytes_ptr = bytes.as_ptr() as CK_VOID_PTR;
-                bytes_ptr
-            }
-            Attribute::PublicExponent(bytes) => {
-                let bytes_ptr = bytes.as_ptr() as CK_VOID_PTR;
-                bytes_ptr
-            }
-            Attribute::Value(value) => {
-                let value_ptr = value.as_ptr() as CK_VOID_PTR;
-                value_ptr
-            }
-            Attribute::ValueLen(len) => {
-                let len_ptr = *len as *mut _ as CK_VOID_PTR;
-                len_ptr
-            }
+            | Attribute::Wrap(b) => *b as *mut _ as CK_VOID_PTR,
+            Attribute::Base(byte) => *byte as *mut _ as CK_VOID_PTR,
+            Attribute::Class(object_class) => *object_class as CK_OBJECT_CLASS_PTR as CK_VOID_PTR,
+            Attribute::KeyType(key_type) => *key_type as *mut _ as CK_VOID_PTR,
+            Attribute::Label(label) => label.as_ptr() as CK_VOID_PTR,
+            Attribute::ModulusBits(bits) => *bits as *mut _ as CK_VOID_PTR,
+            Attribute::Prime(bytes) => bytes.as_ptr() as CK_VOID_PTR,
+            Attribute::PublicExponent(bytes) => bytes.as_ptr() as CK_VOID_PTR,
+            Attribute::Value(value) => value.as_ptr() as CK_VOID_PTR,
+            Attribute::ValueLen(len) => *len as *mut _ as CK_VOID_PTR,
         }
     }
 }
@@ -246,5 +217,22 @@ impl From<&mut Attribute<'_>> for CK_ATTRIBUTE {
             pValue: attribute.ptr(),
             ulValueLen: attribute.len(),
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ObjectHandle(CK_OBJECT_HANDLE);
+
+impl ObjectHandle {
+    pub(crate) fn new(handle: CK_OBJECT_HANDLE) -> Result<Self, Error> {
+        if handle == 0 {
+            Err(Error::Pkcs11(CKR_SESSION_HANDLE_INVALID))
+        } else {
+            Ok(ObjectHandle(handle))
+        }
+    }
+
+    pub fn handle(&self) -> CK_OBJECT_HANDLE {
+        self.0
     }
 }

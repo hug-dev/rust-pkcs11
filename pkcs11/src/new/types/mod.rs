@@ -1,6 +1,8 @@
 pub mod function;
 pub mod locking;
+pub mod mechanism;
 pub mod object;
+pub mod session;
 
 use pkcs11_sys::CKF_ARRAY_ATTRIBUTE;
 use pkcs11_sys::CKF_CLOCK_ON_TOKEN;
