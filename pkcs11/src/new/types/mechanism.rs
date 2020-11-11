@@ -89,7 +89,7 @@ pub enum Mechanism {
     Md5,
     Md5Hmac,
     Md5HmacGeneral,
-    Sha1,
+    Sha_1,
     Sha_1Hmac,
     Sha_1HmacGeneral,
     Ripemd128,
@@ -688,14 +688,14 @@ impl TryFrom<Mechanism> for CK_MECHANISM {
                 ulParameterLen: 0,
             },
             Mechanism::RsaPkcs
-            | Mechanism::Sha1
+            | Mechanism::Sha_1
             | Mechanism::Sha256
             | Mechanism::Sha384
             | Mechanism::Sha512 => CK_MECHANISM {
                 mechanism,
                 pParameter: null_mut(),
                 ulParameterLen: 0,
-            }
+            },
             _ => return Err(Error::NotSupported),
         })
     }
