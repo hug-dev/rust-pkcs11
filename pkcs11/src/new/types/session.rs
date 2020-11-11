@@ -1,9 +1,14 @@
-use crate::errors::Error;
-use pkcs11_sys::{CKR_SESSION_HANDLE_INVALID, CK_SESSION_HANDLE};
+use pkcs11_sys::CK_SESSION_HANDLE;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Session {
     handle: CK_SESSION_HANDLE,
+}
+
+impl Session {
+    pub(crate) fn handle(&self) -> CK_SESSION_HANDLE {
+        self.handle
+    }
 }
 
 pub enum UserType {

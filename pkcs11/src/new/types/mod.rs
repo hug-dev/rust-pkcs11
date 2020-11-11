@@ -3,6 +3,7 @@ pub mod locking;
 pub mod mechanism;
 pub mod object;
 pub mod session;
+pub mod slot_token;
 
 use pkcs11_sys::CKF_ARRAY_ATTRIBUTE;
 use pkcs11_sys::CKF_CLOCK_ON_TOKEN;

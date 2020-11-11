@@ -1,7 +1,7 @@
 use crate::errors::Error;
 use crate::new::types::mechanism::Mechanism;
-use crate::new::types::object::{Attribute, ObjectHandle};
-use crate::new::types::session::SessionHandle;
+use crate::new::types::object::{Attribute, Object};
+use crate::new::types::session::Session;
 use crate::new::Pkcs11;
 use pkcs11_sys::{CKR_OK, CK_ATTRIBUTE, CK_MECHANISM, CK_MECHANISM_PTR, CK_ULONG};
 use std::convert::{TryFrom, TryInto};
@@ -10,11 +10,11 @@ use std::ptr::null_mut;
 impl Pkcs11 {
     pub fn generate_key_pair(
         &self,
-        session: SessionHandle,
+        session: Session,
         mechanism: Mechanism,
         pub_key_template: &mut [Attribute],
         priv_key_template: &mut [Attribute],
-    ) -> Result<(ObjectHandle, ObjectHandle), Error> {
+    ) -> Result<(Object, Object), Error> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut pub_key_template: Vec<CK_ATTRIBUTE> = pub_key_template
             .iter_mut()
@@ -39,8 +39,8 @@ impl Pkcs11 {
             )
         } {
             CKR_OK => Ok((
-                ObjectHandle::new(pub_handle)?,
-                ObjectHandle::new(priv_handle)?,
+                Object::new(pub_handle)?,
+                Object::new(priv_handle)?,
             )),
             err => Err(Error::Pkcs11(err)),
         }
@@ -48,10 +48,10 @@ impl Pkcs11 {
 
     pub fn generate_key(
         &self,
-        session: SessionHandle,
+        session: Session,
         mechanism: Mechanism,
         key_template: &mut [Attribute],
-    ) -> Result<ObjectHandle, Error> {
+    ) -> Result<Object, Error> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut key_template: Vec<CK_ATTRIBUTE> =
             key_template.iter_mut().map(|attr| attr.into()).collect();
@@ -65,17 +65,17 @@ impl Pkcs11 {
                 &mut handle,
             )
         } {
-            CKR_OK => Ok(ObjectHandle::new(handle)?),
+            CKR_OK => Ok(Object::new(handle)?),
             err => Err(Error::Pkcs11(err)),
         }
     }
 
     pub fn wrap_key(
         &self,
-        session: SessionHandle,
+        session: Session,
         mechanism: Mechanism,
-        wrapping_key: ObjectHandle,
-        wrapped_key: ObjectHandle,
+        wrapping_key: Object,
+        wrapped_key: Object,
     ) -> Result<Vec<u8>, Error> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let wrapped_key_bytes = null_mut();
@@ -101,12 +101,12 @@ impl Pkcs11 {
 
     pub fn unwrap_key(
         &self,
-        session: SessionHandle,
+        session: Session,
         mechanism: Mechanism,
-        unwrapping_key: ObjectHandle,
+        unwrapping_key: Object,
         wrapped_key: &mut [u8],
         wrapped_key_template: &mut [Attribute],
-    ) -> Result<ObjectHandle, Error> {
+    ) -> Result<Object, Error> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut wrapped_key_template: Vec<CK_ATTRIBUTE> = wrapped_key_template
             .iter_mut()
@@ -127,18 +127,18 @@ impl Pkcs11 {
                 &mut unwrapped_key_handle,
             )
         } {
-            CKR_OK => Ok(ObjectHandle::new(unwrapped_key_handle)?),
+            CKR_OK => Ok(Object::new(unwrapped_key_handle)?),
             err => Err(Error::Pkcs11(err)),
         }
     }
 
     pub fn derive_key(
         &self,
-        session: SessionHandle,
+        session: Session,
         mechanism: Mechanism,
-        base_key: ObjectHandle,
+        base_key: Object,
         derived_key_template: &mut [Attribute],
-    ) -> Result<ObjectHandle, Error> {
+    ) -> Result<Object, Error> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut derived_key_template: Vec<CK_ATTRIBUTE> = derived_key_template
             .iter_mut()
@@ -156,7 +156,7 @@ impl Pkcs11 {
                 &mut derived_key_handle,
             )
         } {
-            CKR_OK => Ok(ObjectHandle::new(derived_key_handle)?),
+            CKR_OK => Ok(Object::new(derived_key_handle)?),
             err => Err(Error::Pkcs11(err)),
         }
     }

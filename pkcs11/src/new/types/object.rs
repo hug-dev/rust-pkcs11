@@ -221,14 +221,14 @@ impl From<&mut Attribute<'_>> for CK_ATTRIBUTE {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct ObjectHandle(CK_OBJECT_HANDLE);
+pub struct Object(CK_OBJECT_HANDLE);
 
-impl ObjectHandle {
+impl Object {
     pub(crate) fn new(handle: CK_OBJECT_HANDLE) -> Result<Self, Error> {
         if handle == 0 {
             Err(Error::Pkcs11(CKR_SESSION_HANDLE_INVALID))
         } else {
-            Ok(ObjectHandle(handle))
+            Ok(Object(handle))
         }
     }
 

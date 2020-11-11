@@ -1,3 +1,5 @@
+mod rsa;
+
 use crate::errors::Error;
 use pkcs11_sys::*;
 use std::convert::TryFrom;
