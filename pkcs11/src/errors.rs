@@ -59,6 +59,7 @@ impl std::fmt::Display for Error {
             Error::InvalidInput(ref err) => write!(f, "PKCS#11 Invalid Input: {}", err),
             Error::Pkcs11(ref err) => write!(f, "PKCS#11: {} (0x{:x})", strerror(*err), err),
             Error::UnavailableInformation => write!(f, "Attribute value is unavailable"),
+            Error::NotSupported => write!(f, "Attribute value is unavailable"),
         }
     }
 }
