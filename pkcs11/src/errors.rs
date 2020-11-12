@@ -40,9 +40,6 @@ pub enum Error {
     /// and one tries to return the value of a `types::CK_ATTRIBUTE` with one of its associated
     /// getter method (e.g. `get_bytes`).
     UnavailableInformation,
-
-    /// This error marks a feature that is not yet supported by the PKCS11 Rust abstraction layer.
-    NotSupported,
 }
 
 impl From<libloading::Error> for Error {
@@ -59,7 +56,6 @@ impl std::fmt::Display for Error {
             Error::InvalidInput(ref err) => write!(f, "PKCS#11 Invalid Input: {}", err),
             Error::Pkcs11(ref err) => write!(f, "PKCS#11: {} (0x{:x})", strerror(*err), err),
             Error::UnavailableInformation => write!(f, "Attribute value is unavailable"),
-            Error::NotSupported => write!(f, "Attribute value is unavailable"),
         }
     }
 }

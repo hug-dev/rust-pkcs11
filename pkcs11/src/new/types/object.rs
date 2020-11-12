@@ -1,34 +1,4 @@
-use crate::errors::Error;
-use pkcs11_sys::CKA_BASE;
-use pkcs11_sys::CKA_CLASS;
-use pkcs11_sys::CKA_COPYABLE;
-use pkcs11_sys::CKA_DECRYPT;
-use pkcs11_sys::CKA_DERIVE;
-use pkcs11_sys::CKA_ENCRYPT;
-use pkcs11_sys::CKA_EXTRACTABLE;
-use pkcs11_sys::CKA_KEY_TYPE;
-use pkcs11_sys::CKA_LABEL;
-use pkcs11_sys::CKA_MODIFIABLE;
-use pkcs11_sys::CKA_MODULUS_BITS;
-use pkcs11_sys::CKA_PRIME;
-use pkcs11_sys::CKA_PRIVATE;
-use pkcs11_sys::CKA_PUBLIC_EXPONENT;
-use pkcs11_sys::CKA_SENSITIVE;
-use pkcs11_sys::CKA_SIGN;
-use pkcs11_sys::CKA_SIGN_RECOVER;
-use pkcs11_sys::CKA_TOKEN;
-use pkcs11_sys::CKA_UNWRAP;
-use pkcs11_sys::CKA_VALUE;
-use pkcs11_sys::CKA_VALUE_LEN;
-use pkcs11_sys::CKA_VERIFY;
-use pkcs11_sys::CKA_VERIFY_RECOVER;
-use pkcs11_sys::CKA_WRAP;
-use pkcs11_sys::CK_OBJECT_CLASS_PTR;
-use pkcs11_sys::CK_VOID_PTR;
-use pkcs11_sys::{
-    CKR_SESSION_HANDLE_INVALID, CK_ATTRIBUTE, CK_ATTRIBUTE_TYPE, CK_BBOOL, CK_BYTE, CK_KEY_TYPE,
-    CK_OBJECT_CLASS, CK_OBJECT_HANDLE, CK_ULONG, CK_UTF8CHAR,
-};
+use pkcs11_sys::*;
 use std::convert::TryInto;
 
 #[derive(Debug, Copy, Clone)]
@@ -221,18 +191,16 @@ impl From<&mut Attribute<'_>> for CK_ATTRIBUTE {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Object(CK_OBJECT_HANDLE);
+pub struct Object {
+    handle: CK_OBJECT_HANDLE,
+}
 
 impl Object {
-    pub(crate) fn new(handle: CK_OBJECT_HANDLE) -> Result<Self, Error> {
-        if handle == 0 {
-            Err(Error::Pkcs11(CKR_SESSION_HANDLE_INVALID))
-        } else {
-            Ok(Object(handle))
-        }
+    pub(crate) fn new(handle: CK_OBJECT_HANDLE) -> Self {
+        Object { handle }
     }
 
-    pub fn handle(&self) -> CK_OBJECT_HANDLE {
-        self.0
+    pub(crate) fn handle(&self) -> CK_OBJECT_HANDLE {
+        self.handle
     }
 }
