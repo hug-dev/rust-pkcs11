@@ -38,6 +38,7 @@ is-it-maintained-open-issues = { repository = "mheese/rust-pkcs11" }
 libloading = "0.6.1"
 num-bigint = "0.2.6"
 pkcs11-sys = { path = "../pkcs11-sys" }
+log = "0.4.11"
 #libc = "0.2.33"
 
 [dev-dependencies]

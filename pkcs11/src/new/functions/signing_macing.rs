@@ -41,6 +41,7 @@ impl Pkcs11 {
 
         let mut signature = vec![0; signature_len.try_into()?];
 
+        //TODO: we should add a new error instead of those unwrap!
         Rv::from(unsafe {
             ((*self.function_list).C_Sign.unwrap())(
                 session.handle(),
