@@ -2,7 +2,7 @@ pub mod functions;
 pub mod objects;
 pub mod types;
 
-use pkcs11_sys::CKR_OK;
+use crate::new::types::function::Rv;
 use std::mem;
 use std::path::Path;
 
@@ -28,10 +28,7 @@ impl Pkcs11 {
                 });
             }
 
-            match pkcs11_lib.C_GetFunctionList(list.as_mut_ptr()) {
-                CKR_OK => (),
-                _err => return Err(Error::Pkcs11(types::function::Rv::Ok)),
-            }
+            Rv::from(pkcs11_lib.C_GetFunctionList(list.as_mut_ptr())).to_result()?;
 
             let list_ptr = *list.as_ptr();
 
@@ -52,7 +49,7 @@ pub enum Error {
     /// errors will be returned as such. Some functions that return non-zero values that are not errors
     /// will not be returned as errors. The affected functions are:
     /// `get_attribute_value`, `get_function_status`, `cancel_function` and `wait_for_slot_event`
-    Pkcs11(types::function::Rv),
+    Pkcs11(types::function::RvError),
 }
 
 impl From<libloading::Error> for Error {
