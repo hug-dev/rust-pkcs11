@@ -1,6 +1,6 @@
 mod rsa;
 
-use crate::errors::Error;
+use crate::new::Error;
 use pkcs11_sys::*;
 use std::convert::TryFrom;
 use std::ptr::null_mut;

@@ -18,14 +18,12 @@ impl Pkcs11 {
         P: AsRef<Path>,
     {
         unsafe {
-            let pkcs11_lib = pkcs11_sys::Pkcs11::new(filename.as_ref())
-                .map_err(|e| Error::LibraryLoading { err: e })?;
+            let pkcs11_lib =
+                pkcs11_sys::Pkcs11::new(filename.as_ref()).map_err(|e| Error::LibraryLoading(e))?;
             let mut list = mem::MaybeUninit::uninit();
 
             if pkcs11_lib.can_call().C_GetFunctionList().is_err() {
-                return Err(Error::LibraryLoading {
-                    err: libloading::Error::DlOpenUnknown,
-                });
+                return Err(Error::LibraryLoading(libloading::Error::DlOpenUnknown));
             }
 
             Rv::from(pkcs11_lib.C_GetFunctionList(list.as_mut_ptr())).to_result()?;
@@ -43,18 +41,30 @@ impl Pkcs11 {
 pub enum Error {
     /// Any error that happens during library loading of the PKCS#11 module is encompassed under
     /// this error. It is a direct forward of the underlying error from libloading.
-    LibraryLoading { err: libloading::Error },
+    LibraryLoading(libloading::Error),
 
     /// All PKCS#11 functions that return non-zero translate to this error. Note though that only true
     /// errors will be returned as such. Some functions that return non-zero values that are not errors
     /// will not be returned as errors. The affected functions are:
     /// `get_attribute_value`, `get_function_status`, `cancel_function` and `wait_for_slot_event`
     Pkcs11(types::function::RvError),
+
+    /// This error marks a feature that is not yet supported by the PKCS11 Rust abstraction layer.
+    NotSupported,
+
+    /// Error happening while converting types
+    TryFromInt(std::num::TryFromIntError),
 }
 
 impl From<libloading::Error> for Error {
     fn from(err: libloading::Error) -> Error {
-        Error::LibraryLoading { err }
+        Error::LibraryLoading(err)
+    }
+}
+
+impl From<std::num::TryFromIntError> for Error {
+    fn from(err: std::num::TryFromIntError) -> Error {
+        Error::TryFromInt(err)
     }
 }
 
@@ -118,16 +128,22 @@ mod tests {
             .unwrap();
 
         // data to sign
-        let data = [0xFF, 0x55, 0xDD];
+        let mut data = [0xFF, 0x55, 0xDD];
 
         // sign something with it
-        let signature = pkcs11
-            .sign(&session, Mechanism::RsaPkcs, &private, &data)
+        let mut signature = pkcs11
+            .sign(&session, Mechanism::RsaPkcs, &private, &mut data)
             .unwrap();
 
         // verify the signature
         pkcs11
-            .verify(&session, Mechanism::RsaPkcs, &public, &data, &signature)
+            .verify(
+                &session,
+                Mechanism::RsaPkcs,
+                &public,
+                &mut data,
+                &mut signature,
+            )
             .unwrap();
 
         // delete keys
