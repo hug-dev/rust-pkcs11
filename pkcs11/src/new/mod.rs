@@ -7,8 +7,9 @@ use std::mem;
 use std::path::Path;
 
 pub struct Pkcs11 {
-    //this field is not needed once we have the function list
-    //pkcs11_lib: pkcs11_sys::Pkcs11,
+    // Even if this field is never read, it is needed for the pointers in function_list to remain
+    // valid.
+    _pkcs11_lib: pkcs11_sys::Pkcs11,
     function_list: *mut pkcs11_sys::_CK_FUNCTION_LIST,
 }
 
@@ -31,6 +32,7 @@ impl Pkcs11 {
             let list_ptr = *list.as_ptr();
 
             Ok(Pkcs11 {
+                _pkcs11_lib: pkcs11_lib,
                 function_list: list_ptr,
             })
         }
@@ -54,6 +56,8 @@ pub enum Error {
 
     /// Error happening while converting types
     TryFromInt(std::num::TryFromIntError),
+
+    NulError(std::ffi::NulError),
 }
 
 impl From<libloading::Error> for Error {
@@ -68,10 +72,17 @@ impl From<std::num::TryFromIntError> for Error {
     }
 }
 
+impl From<std::ffi::NulError> for Error {
+    fn from(err: std::ffi::NulError) -> Error {
+        Error::NulError(err)
+    }
+}
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
+    use crate::new::types::locking::CInitializeArgs;
     use crate::new::types::mechanism::Mechanism;
     use crate::new::types::object::Attribute;
     use crate::new::types::session::UserType;
@@ -81,6 +92,9 @@ mod tests {
     #[test]
     fn the_one_test() {
         let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
+
+        // initialize the library
+        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
 
         // find a slot, get the first one
         let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
@@ -95,15 +109,15 @@ mod tests {
         let pin = String::from("123456");
 
         // log in the session
-        pkcs11.login(&session, UserType::User, pin).unwrap();
+        pkcs11.login(&session, UserType::User, &pin).unwrap();
 
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
 
-        let mut attr_true: u8 = 1;
-        let mut attr_true1: u8 = 1;
-        let mut attr_false: u8 = 0;
-        let mut public_exponent: Vec<u8> = vec![0x00, 0x01, 0x00];
+        let mut attr_true = pkcs11_sys::CK_TRUE;
+        let mut attr_true1 = pkcs11_sys::CK_TRUE;
+        let mut attr_false = pkcs11_sys::CK_FALSE;
+        let mut public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
         let mut modulus_bits: u64 = 1024;
 
         // pub key template
