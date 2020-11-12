@@ -1,5 +1,9 @@
-use pkcs11_sys::CK_SLOT_ID;
-
 pub struct Slot {
-    slot_id: CK_SLOT_ID,
+    slot_id: u64,
+}
+
+impl Slot {
+    pub fn id(&self) -> u64 {
+        self.slot_id
+    }
 }

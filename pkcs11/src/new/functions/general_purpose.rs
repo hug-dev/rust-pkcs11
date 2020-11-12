@@ -21,9 +21,9 @@ impl Pkcs11 {
     }
 
     pub unsafe fn finalize(&self) -> Result<()> {
-        match unsafe { ((*self.function_list).C_Finalize.unwrap())(ptr::null_mut()) } {
+        match ((*self.function_list).C_Finalize.unwrap())(ptr::null_mut()) {
             CKR_OK => Ok(()),
-            err => Err(Error::Pkcs11(Rv::Ok)),
+            _err => Err(Error::Pkcs11(Rv::Ok)),
         }
     }
 }

@@ -10,7 +10,7 @@ use std::ptr::null_mut;
 impl Pkcs11 {
     pub fn generate_key_pair(
         &self,
-        session: Session,
+        session: &Session,
         mechanism: Mechanism,
         pub_key_template: &mut [Attribute],
         priv_key_template: &mut [Attribute],
@@ -38,10 +38,7 @@ impl Pkcs11 {
                 &mut priv_handle,
             )
         } {
-            CKR_OK => Ok((
-                Object::new(pub_handle)?,
-                Object::new(priv_handle)?,
-            )),
+            CKR_OK => Ok((Object::new(pub_handle)?, Object::new(priv_handle)?)),
             err => Err(Error::Pkcs11(err)),
         }
     }
