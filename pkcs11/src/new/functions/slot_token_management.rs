@@ -1,6 +1,6 @@
-use crate::new::types::function::Result;
 use crate::new::types::slot_token::Slot;
 use crate::new::Pkcs11;
+use crate::new::Result;
 
 impl Pkcs11 {
     pub fn get_slots_with_token(&self) -> Result<Vec<Slot>> {
