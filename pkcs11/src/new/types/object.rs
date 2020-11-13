@@ -190,7 +190,7 @@ impl From<&mut Attribute<'_>> for CK_ATTRIBUTE {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Object {
     handle: CK_OBJECT_HANDLE,
 }
@@ -203,4 +203,10 @@ impl Object {
     pub(crate) fn handle(&self) -> CK_OBJECT_HANDLE {
         self.handle
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum AttributeInfo {
+    Unavailable,
+    Available(usize),
 }
