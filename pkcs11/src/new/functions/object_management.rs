@@ -1,3 +1,4 @@
+use crate::get_pkcs11;
 use crate::new::types::function::{Rv, RvError};
 use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, Object};
 use crate::new::types::session::Session;
@@ -5,6 +6,7 @@ use crate::new::Pkcs11;
 use crate::new::{Error, Result};
 use log::error;
 use pkcs11_sys::*;
+use std::cmp::Ordering;
 use std::convert::TryInto;
 
 // Search 10 elements at a time
@@ -18,45 +20,46 @@ impl Pkcs11 {
     ) -> Result<Vec<Object>> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_FindObjectsInit.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_FindObjectsInit)(
                 session.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         let mut object_handles = [0; MAX_OBJECT_COUNT];
         let mut object_count = 0;
         let mut objects = Vec::new();
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_FindObjects.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_FindObjects)(
                 session.handle(),
                 object_handles.as_mut_ptr() as CK_OBJECT_HANDLE_PTR,
                 MAX_OBJECT_COUNT.try_into()?,
                 &mut object_count,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         while object_count > 0 {
             objects.extend_from_slice(&object_handles[..object_count.try_into()?]);
 
-            Rv::from(unsafe {
-                ((*self.function_list).C_FindObjects.unwrap())(
+            unsafe {
+                Rv::from(get_pkcs11!(self, C_FindObjects)(
                     session.handle(),
                     object_handles.as_mut_ptr() as CK_OBJECT_HANDLE_PTR,
                     MAX_OBJECT_COUNT.try_into()?,
                     &mut object_count,
-                )
-            })
-            .to_result()?;
+                ))
+                .into_result()?;
+            }
         }
 
-        Rv::from(unsafe { ((*self.function_list).C_FindObjectsFinal.unwrap())(session.handle()) })
-            .to_result()?;
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_FindObjectsFinal)(session.handle())).into_result()?;
+        }
 
         let objects = objects.into_iter().map(Object::new).collect();
 
@@ -67,24 +70,27 @@ impl Pkcs11 {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
         let mut object_handle = 0;
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_CreateObject.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_CreateObject)(
                 session.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
                 &mut object_handle as CK_OBJECT_HANDLE_PTR,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         Ok(Object::new(object_handle))
     }
 
     pub fn destroy_object(&self, session: &Session, object: Object) -> Result<()> {
-        Rv::from(unsafe {
-            ((*self.function_list).C_DestroyObject.unwrap())(session.handle(), object.handle())
-        })
-        .to_result()
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_DestroyObject)(
+                session.handle(),
+                object.handle(),
+            ))
+            .into_result()
+        }
     }
 
     // Return without modifying the template if:
@@ -110,58 +116,60 @@ impl Pkcs11 {
             })
             .collect();
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_GetAttributeValue.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
                 session.handle(),
                 object.handle(),
                 test_template.as_mut_ptr(),
                 test_template.len().try_into()?,
-            )
-        })
-        .to_result()
-        .or_else(|e| {
-            for attribute in &test_template {
-                if attribute.ulValueLen == CK_UNAVAILABLE_INFORMATION {
-                    error!("Attribute {} is unavailable.", attribute.type_);
+            ))
+            .into_result()
+            .map_err(|e| {
+                for attribute in &test_template {
+                    if attribute.ulValueLen == CK_UNAVAILABLE_INFORMATION {
+                        error!("Attribute {} is unavailable.", attribute.type_);
+                    }
                 }
-            }
-            Err(e)
-        })?;
+                e
+            })?;
+        }
 
         // Check that the length of the attribute is the same one as in the originial iterator
         template
             .iter()
             .cloned()
             .zip(test_template.into_iter())
-            .map(|(given, expected)| {
-                if given.ulValueLen < expected.ulValueLen {
-                    error!(
-                        "Attribute of type {} has a buffer too small. {} expected, {} given.",
-                        given.type_, expected.ulValueLen, given.ulValueLen
-                    );
-                    Err(RvError::BufferTooSmall.into())
-                } else if given.ulValueLen > expected.ulValueLen {
-                    error!(
-                        "Attribute of type {} has a buffer too big. {} expected, {} given.",
-                        given.type_, expected.ulValueLen, given.ulValueLen
-                    );
-                    Err(Error::BufferTooBig)
-                } else {
-                    Ok(())
-                }
-            })
+            .map(
+                |(given, expected)| match given.ulValueLen.cmp(&expected.ulValueLen) {
+                    Ordering::Less => {
+                        error!(
+                            "Attribute of type {} has a buffer too small. {} expected, {} given.",
+                            given.type_, expected.ulValueLen, given.ulValueLen
+                        );
+                        Err(RvError::BufferTooSmall.into())
+                    }
+                    Ordering::Greater => {
+                        error!(
+                            "Attribute of type {} has a buffer too big. {} expected, {} given.",
+                            given.type_, expected.ulValueLen, given.ulValueLen
+                        );
+                        Err(Error::BufferTooBig)
+                    }
+                    Ordering::Equal => Ok(()),
+                },
+            )
             .collect::<Result<()>>()?;
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_GetAttributeValue.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
                 session.handle(),
                 object.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
-            )
-        })
-        // Add a or_else to log what attribute were missing in case of error
-        .to_result()
+            ))
+            // Add a or_else to log what attribute were missing in case of error
+            .into_result()
+        }
     }
 
     pub fn get_attribute_info(
@@ -179,14 +187,14 @@ impl Pkcs11 {
             })
             .collect();
 
-        match Rv::from(unsafe {
-            ((*self.function_list).C_GetAttributeValue.unwrap())(
+        match unsafe {
+            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
                 session.handle(),
                 object.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
-            )
-        }) {
+            ))
+        } {
             Rv::Ok
             | Rv::Error(RvError::AttributeSensitive)
             | Rv::Error(RvError::AttributeTypeInvalid) => Ok(template

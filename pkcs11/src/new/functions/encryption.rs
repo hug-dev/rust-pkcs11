@@ -1,3 +1,4 @@
+use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::Object;
@@ -18,39 +19,39 @@ impl Pkcs11 {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut encrypted_data_len = 0;
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_EncryptInit.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_EncryptInit)(
                 session.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key.handle(),
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         // Get the output buffer length
-        Rv::from(unsafe {
-            ((*self.function_list).C_Encrypt.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_Encrypt)(
                 session.handle(),
                 data.as_mut_ptr(),
                 data.len().try_into()?,
                 std::ptr::null_mut(),
                 &mut encrypted_data_len,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         let mut encrypted_data = vec![0; encrypted_data_len.try_into()?];
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_Encrypt.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_Encrypt)(
                 session.handle(),
                 data.as_mut_ptr(),
                 data.len().try_into()?,
                 encrypted_data.as_mut_ptr(),
                 &mut encrypted_data_len,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         encrypted_data.resize(encrypted_data_len.try_into()?, 0);
 

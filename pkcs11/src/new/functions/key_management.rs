@@ -1,3 +1,4 @@
+use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::{Attribute, Object};
@@ -26,8 +27,8 @@ impl Pkcs11 {
             .collect();
         let mut pub_handle = 0;
         let mut priv_handle = 0;
-        Rv::from(unsafe {
-            ((*self.function_list).C_GenerateKeyPair.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_GenerateKeyPair)(
                 session.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 pub_key_template.as_mut_ptr(),
@@ -36,9 +37,9 @@ impl Pkcs11 {
                 priv_key_template.len().try_into()?,
                 &mut pub_handle,
                 &mut priv_handle,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         Ok((Object::new(pub_handle), Object::new(priv_handle)))
     }
@@ -53,16 +54,16 @@ impl Pkcs11 {
         let mut key_template: Vec<CK_ATTRIBUTE> =
             key_template.iter_mut().map(|attr| attr.into()).collect();
         let mut handle = 0;
-        Rv::from(unsafe {
-            ((*self.function_list).C_GenerateKey.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_GenerateKey)(
                 session.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key_template.as_mut_ptr(),
                 key_template.len().try_into()?,
                 &mut handle,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         Ok(Object::new(handle))
     }

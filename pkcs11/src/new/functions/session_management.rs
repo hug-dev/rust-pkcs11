@@ -1,3 +1,4 @@
+use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::session::{Session, UserType};
 use crate::new::types::slot_token::Slot;
@@ -11,41 +12,40 @@ impl Pkcs11 {
     pub fn open_session_no_callback(&self, slot_id: &Slot, flags: Flags) -> Result<Session> {
         let mut session_handle = 0;
 
-        Rv::from(unsafe {
-            ((*self.function_list).C_OpenSession.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_OpenSession)(
                 slot_id.id(),
                 flags.into(),
                 // TODO: abstract those types or create new functions for callbacks
                 std::ptr::null_mut(),
                 None,
                 &mut session_handle,
-            )
-        })
-        .to_result()?;
+            ))
+            .into_result()?;
+        }
 
         Ok(Session::new(session_handle))
     }
 
     pub fn close_session(&self, session: Session) -> Result<()> {
-        Rv::from(unsafe { ((*self.function_list).C_CloseSession.unwrap())(session.handle()) })
-            .to_result()
+        unsafe { Rv::from(get_pkcs11!(self, C_CloseSession)(session.handle())).into_result() }
     }
 
     pub fn login(&self, session: &Session, user_type: UserType, pin: &str) -> Result<()> {
         //TODO: zeroize after
         let mut pin = CString::new(pin)?.into_bytes();
-        Rv::from(unsafe {
-            ((*self.function_list).C_Login.unwrap())(
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_Login)(
                 session.handle(),
                 user_type.into(),
                 pin.as_mut_ptr(),
                 pin.len().try_into()?,
-            )
-        })
-        .to_result()
+            ))
+            .into_result()
+        }
     }
 
     pub fn logout(&self, session: &Session) -> Result<()> {
-        Rv::from(unsafe { ((*self.function_list).C_Logout.unwrap())(session.handle()) }).to_result()
+        unsafe { Rv::from(get_pkcs11!(self, C_Logout)(session.handle())).into_result() }
     }
 }

@@ -7,11 +7,21 @@ use std::fmt;
 use std::mem;
 use std::path::Path;
 
+#[macro_export]
+macro_rules! get_pkcs11 {
+    ($pkcs11:expr, $func_name:ident) => {
+        ($pkcs11
+            .function_list
+            .$func_name
+            .ok_or(crate::new::Error::NullFunctionPointer)?)
+    };
+}
+
 pub struct Pkcs11 {
     // Even if this field is never read, it is needed for the pointers in function_list to remain
     // valid.
     _pkcs11_lib: pkcs11_sys::Pkcs11,
-    function_list: *mut pkcs11_sys::_CK_FUNCTION_LIST,
+    function_list: pkcs11_sys::_CK_FUNCTION_LIST,
 }
 
 impl Pkcs11 {
@@ -21,20 +31,20 @@ impl Pkcs11 {
     {
         unsafe {
             let pkcs11_lib =
-                pkcs11_sys::Pkcs11::new(filename.as_ref()).map_err(|e| Error::LibraryLoading(e))?;
+                pkcs11_sys::Pkcs11::new(filename.as_ref()).map_err(Error::LibraryLoading)?;
             let mut list = mem::MaybeUninit::uninit();
 
             if pkcs11_lib.can_call().C_GetFunctionList().is_err() {
                 return Err(Error::LibraryLoading(libloading::Error::DlOpenUnknown));
             }
 
-            Rv::from(pkcs11_lib.C_GetFunctionList(list.as_mut_ptr())).to_result()?;
+            Rv::from(pkcs11_lib.C_GetFunctionList(list.as_mut_ptr())).into_result()?;
 
             let list_ptr = *list.as_ptr();
 
             Ok(Pkcs11 {
                 _pkcs11_lib: pkcs11_lib,
-                function_list: list_ptr,
+                function_list: *list_ptr,
             })
         }
     }
@@ -61,6 +71,8 @@ pub enum Error {
     NulError(std::ffi::NulError),
 
     BufferTooBig,
+
+    NullFunctionPointer,
 }
 
 impl fmt::Display for Error {
