@@ -53,6 +53,8 @@ impl Pkcs11 {
         })
         .to_result()?;
 
+        signature.resize(signature_len.try_into()?, 0);
+
         Ok(signature)
     }
 

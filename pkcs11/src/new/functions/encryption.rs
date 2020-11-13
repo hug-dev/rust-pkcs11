@@ -52,6 +52,8 @@ impl Pkcs11 {
         })
         .to_result()?;
 
+        encrypted_data.resize(encrypted_data_len.try_into()?, 0);
+
         Ok(encrypted_data)
     }
 }
