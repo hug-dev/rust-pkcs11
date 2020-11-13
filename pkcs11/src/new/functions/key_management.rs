@@ -4,7 +4,7 @@ use crate::new::types::object::{Attribute, Object};
 use crate::new::types::session::Session;
 use crate::new::Pkcs11;
 use crate::new::Result;
-use pkcs11_sys::{CK_ATTRIBUTE, CK_MECHANISM, CK_MECHANISM_PTR, CK_ULONG};
+use pkcs11_sys::{CK_ATTRIBUTE, CK_MECHANISM, CK_MECHANISM_PTR};
 use std::convert::TryInto;
 use std::ptr::null_mut;
 
@@ -32,9 +32,9 @@ impl Pkcs11 {
                 session.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 pub_key_template.as_mut_ptr(),
-                pub_key_template.len() as CK_ULONG,
+                pub_key_template.len().try_into()?,
                 priv_key_template.as_mut_ptr(),
-                priv_key_template.len() as CK_ULONG,
+                priv_key_template.len().try_into()?,
                 &mut pub_handle,
                 &mut priv_handle,
             )
@@ -59,7 +59,7 @@ impl Pkcs11 {
                 session.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key_template.as_mut_ptr(),
-                key_template.len() as CK_ULONG,
+                key_template.len().try_into()?,
                 &mut handle,
             )
         })
