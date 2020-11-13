@@ -58,7 +58,7 @@ impl Pkcs11 {
         Rv::from(unsafe { ((*self.function_list).C_FindObjectsFinal.unwrap())(session.handle()) })
             .to_result()?;
 
-        let objects = objects.into_iter().map(|e| Object::new(e)).collect();
+        let objects = objects.into_iter().map(Object::new).collect();
 
         Ok(objects)
     }

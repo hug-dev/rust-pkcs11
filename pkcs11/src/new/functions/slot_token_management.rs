@@ -28,7 +28,10 @@ impl Pkcs11 {
         })
         .to_result()?;
 
-        let slots = slots.into_iter().map(|e| Slot::new(e)).collect();
+        let mut slots: Vec<Slot> = slots.into_iter().map(|e| Slot::new(e)).collect();
+
+        // This should always truncate slots.
+        slots.resize(slot_count.try_into()?, Slot::new(0));
 
         Ok(slots)
     }
@@ -56,7 +59,10 @@ impl Pkcs11 {
         })
         .to_result()?;
 
-        let slots = slots.into_iter().map(|e| Slot::new(e)).collect();
+        let mut slots: Vec<Slot> = slots.into_iter().map(|e| Slot::new(e)).collect();
+
+        // This should always truncate slots.
+        slots.resize(slot_count.try_into()?, Slot::new(0));
 
         Ok(slots)
     }
