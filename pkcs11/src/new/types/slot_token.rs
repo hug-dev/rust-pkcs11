@@ -1,6 +1,6 @@
 use pkcs11_sys::CK_SLOT_ID;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Slot {
     slot_id: u64,
 }
