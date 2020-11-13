@@ -224,7 +224,7 @@ impl From<RvError> for Error {
 }
 
 impl Rv {
-    pub fn to_result(self) -> Result<()> {
+    pub fn into_result(self) -> Result<()> {
         match self {
             Rv::Ok => Ok(()),
             Rv::Error(rv_error) => Err(Error::Pkcs11(rv_error)),

@@ -1,6 +1,8 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+#![allow(clippy::redundant_field_names)]
+#![allow(clippy::missing_safety_doc)]
 
 // Pull in the generated bindings.
 include!(concat!(env!("OUT_DIR"), "/pkcs11_bindings.rs"));
