@@ -106,7 +106,7 @@ mod tests {
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
-        let session = pkcs11.open_session(&slot, flags).unwrap();
+        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
 
         let pin = String::from("123456");
 
@@ -188,7 +188,7 @@ mod tests {
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
-        let session = pkcs11.open_session(&slot, flags).unwrap();
+        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
 
         let pin = String::from("123456");
 
@@ -245,7 +245,7 @@ mod tests {
             .unwrap();
 
         // The decrypted buffer is bigger than the original one.
-        assert_eq!(data, decrypted_data[0..data.len()]);
+        assert_eq!(data, decrypted_data);
 
         // delete keys
         pkcs11.destroy_object(&session, public).unwrap();
@@ -259,7 +259,5 @@ mod tests {
     }
 
     #[test]
-    fn import_export() {
-        // TODO
-    }
+    fn import_export() {}
 }

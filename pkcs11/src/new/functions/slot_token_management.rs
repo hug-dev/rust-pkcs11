@@ -49,7 +49,7 @@ impl Pkcs11 {
 
         Rv::from(unsafe {
             ((*self.function_list).C_GetSlotList.unwrap())(
-                pkcs11_sys::CK_TRUE,
+                pkcs11_sys::CK_FALSE,
                 slots.as_mut_ptr(),
                 &mut slot_count,
             )

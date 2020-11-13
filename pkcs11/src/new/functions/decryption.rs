@@ -52,6 +52,8 @@ impl Pkcs11 {
         })
         .to_result()?;
 
+        data.resize(data_len.try_into()?, 0);
+
         Ok(data)
     }
 }

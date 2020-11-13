@@ -8,7 +8,7 @@ use std::convert::TryInto;
 use std::ffi::CString;
 
 impl Pkcs11 {
-    pub fn open_session(&self, slot_id: &Slot, flags: Flags) -> Result<Session> {
+    pub fn open_session_no_callback(&self, slot_id: &Slot, flags: Flags) -> Result<Session> {
         let mut session_handle = 0;
 
         Rv::from(unsafe {
