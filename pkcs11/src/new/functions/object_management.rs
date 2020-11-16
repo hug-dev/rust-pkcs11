@@ -13,7 +13,7 @@ const MAX_OBJECT_COUNT: usize = 10;
 impl Pkcs11 {
     pub fn find_objects(
         &self,
-        session: &mut Session,
+        session: &Session,
         template: &mut [Attribute],
     ) -> Result<Vec<Object>> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
@@ -94,7 +94,7 @@ impl Pkcs11 {
     // - any of the attribute given length is bigger than the one required
     pub fn get_attribute_value(
         &self,
-        session: &mut Session,
+        session: &Session,
         object: &Object,
         template: &mut [Attribute],
     ) -> Result<()> {
@@ -166,7 +166,7 @@ impl Pkcs11 {
 
     pub fn get_attribute_info(
         &self,
-        session: &mut Session,
+        session: &Session,
         object: &Object,
         attributes: &[AttributeType],
     ) -> Result<Vec<AttributeInfo>> {
