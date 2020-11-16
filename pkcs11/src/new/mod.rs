@@ -86,10 +86,11 @@ pub type Result<T> = core::result::Result<T, Error>;
 mod tests {
     use crate::new::types::locking::CInitializeArgs;
     use crate::new::types::mechanism::Mechanism;
-    use crate::new::types::object::Attribute;
+    use crate::new::types::object::{Attribute, AttributeInfo, AttributeType};
     use crate::new::types::session::UserType;
     use crate::new::types::Flags;
     use crate::new::Pkcs11;
+    use pkcs11_sys::*;
 
     #[test]
     fn sign_verify() {
@@ -259,5 +260,87 @@ mod tests {
     }
 
     #[test]
-    fn import_export() {}
+    fn import_export() {
+        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
+
+        // initialize the library
+        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
+
+        // find a slot, get the first one
+        let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+
+        // set flags
+        let mut flags = Flags::new();
+        flags.set_rw_session(true).set_serial_session(true);
+
+        // open a session
+        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
+
+        let pin = String::from("123456");
+
+        // log in the session
+        pkcs11.login(&session, UserType::User, &pin).unwrap();
+
+        let mut attr_true = pkcs11_sys::CK_TRUE;
+        let mut attr_true1 = pkcs11_sys::CK_TRUE;
+        let mut attr_false = pkcs11_sys::CK_FALSE;
+        let mut public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
+        let mut modulus = vec![0xFF; 1024];
+        let mut class = CKO_PUBLIC_KEY;
+        let mut key_type = CKK_RSA;
+
+        let mut template = vec![
+            Attribute::Token(&mut attr_true),
+            Attribute::Private(&mut attr_false),
+            Attribute::PublicExponent(&mut public_exponent),
+            Attribute::Modulus(&mut modulus),
+            Attribute::Class(&mut class),
+            Attribute::KeyType(&mut key_type),
+            Attribute::Verify(&mut attr_true1),
+        ];
+
+        {
+            // Intentionally forget the object handle to find it later
+            let _public_key = pkcs11.create_object(&session, &mut template).unwrap();
+        }
+
+        let is_it_the_public_key = pkcs11
+            .find_objects(&session, &mut template)
+            .unwrap()
+            .remove(0);
+
+        let attribute_info = pkcs11
+            .get_attribute_info(&session, &is_it_the_public_key, &[AttributeType::Modulus])
+            .unwrap()
+            .remove(0);
+
+        let size = if let AttributeInfo::Available(size) = attribute_info {
+            size
+        } else {
+            panic!()
+        };
+
+        let mut modulus_cmp = vec![0; size];
+
+        pkcs11
+            .get_attribute_value(
+                &session,
+                &is_it_the_public_key,
+                &mut [Attribute::Modulus(&mut modulus_cmp)],
+            )
+            .unwrap();
+
+        assert_eq!(modulus, modulus_cmp);
+
+        // delete key
+        pkcs11
+            .destroy_object(&session, is_it_the_public_key)
+            .unwrap();
+
+        // log out
+        pkcs11.logout(&session).unwrap();
+
+        // close session
+        pkcs11.close_session(session).unwrap();
+    }
 }
