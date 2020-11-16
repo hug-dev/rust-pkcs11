@@ -196,14 +196,14 @@ impl From<&mut Attribute<'_>> for CK_ATTRIBUTE {
     }
 }
 
-#[derive(Debug)]
-pub struct Object {
+#[derive(Debug, Clone, Copy)]
+pub struct ObjectHandle {
     handle: CK_OBJECT_HANDLE,
 }
 
-impl Object {
+impl ObjectHandle {
     pub(crate) fn new(handle: CK_OBJECT_HANDLE) -> Self {
-        Object { handle }
+        ObjectHandle { handle }
     }
 
     pub(crate) fn handle(&self) -> CK_OBJECT_HANDLE {

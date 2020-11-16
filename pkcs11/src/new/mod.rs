@@ -84,6 +84,7 @@ impl fmt::Display for Error {
             Error::TryFromInt(e) => write!(f, "Conversion between integers failed ({})", e),
             Error::NulError(e) => write!(f, "An interior nul byte was found ({})", e),
             Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
+            Error::NullFunctionPointer => write!(f, "Calling a NULL function pointer"),
         }
     }
 }
@@ -94,7 +95,10 @@ impl std::error::Error for Error {
             Error::LibraryLoading(e) => Some(e),
             Error::TryFromInt(e) => Some(e),
             Error::NulError(e) => Some(e),
-            Error::BufferTooBig | Error::Pkcs11(_) | Error::NotSupported => None,
+            Error::BufferTooBig
+            | Error::Pkcs11(_)
+            | Error::NotSupported
+            | Error::NullFunctionPointer => None,
         }
     }
 }
@@ -186,7 +190,7 @@ mod tests {
 
         // sign something with it
         let mut signature = pkcs11
-            .sign(&session, Mechanism::RsaPkcs, &private, &mut data)
+            .sign(&session, Mechanism::RsaPkcs, private, &mut data)
             .unwrap();
 
         // verify the signature
@@ -194,7 +198,7 @@ mod tests {
             .verify(
                 &session,
                 Mechanism::RsaPkcs,
-                &public,
+                public,
                 &mut data,
                 &mut signature,
             )
@@ -274,12 +278,12 @@ mod tests {
 
         // encrypt something with it
         let mut encrypted_data = pkcs11
-            .encrypt(&session, Mechanism::RsaPkcs, &public, &mut data)
+            .encrypt(&session, Mechanism::RsaPkcs, public, &mut data)
             .unwrap();
 
         // decrypt
         let decrypted_data = pkcs11
-            .decrypt(&session, Mechanism::RsaPkcs, &private, &mut encrypted_data)
+            .decrypt(&session, Mechanism::RsaPkcs, private, &mut encrypted_data)
             .unwrap();
 
         // The decrypted buffer is bigger than the original one.
@@ -347,14 +351,14 @@ mod tests {
             .remove(0);
 
         let attribute_info = pkcs11
-            .get_attribute_info(&session, &is_it_the_public_key, &[AttributeType::Modulus])
+            .get_attribute_info(&session, is_it_the_public_key, &[AttributeType::Modulus])
             .unwrap()
             .remove(0);
 
         let size = if let AttributeInfo::Available(size) = attribute_info {
             size
         } else {
-            panic!()
+            panic!("The Modulus attribute was expected to be present.")
         };
 
         let mut modulus_cmp = vec![0; size];
@@ -362,7 +366,7 @@ mod tests {
         pkcs11
             .get_attribute_value(
                 &session,
-                &is_it_the_public_key,
+                is_it_the_public_key,
                 &mut [Attribute::Modulus(&mut modulus_cmp)],
             )
             .unwrap();
