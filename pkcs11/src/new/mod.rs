@@ -3,6 +3,7 @@ pub mod objects;
 pub mod types;
 
 use crate::new::types::function::Rv;
+use std::fmt;
 use std::mem;
 use std::path::Path;
 
@@ -60,6 +61,30 @@ pub enum Error {
     NulError(std::ffi::NulError),
 
     BufferTooBig,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::LibraryLoading(e) => write!(f, "libloading error ({})", e),
+            Error::Pkcs11(e) => write!(f, "PKCS11 error: {}", e),
+            Error::NotSupported => write!(f, "Feature not supported"),
+            Error::TryFromInt(e) => write!(f, "Conversion between integers failed ({})", e),
+            Error::NulError(e) => write!(f, "An interior nul byte was found ({})", e),
+            Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::LibraryLoading(e) => Some(e),
+            Error::TryFromInt(e) => Some(e),
+            Error::NulError(e) => Some(e),
+            Error::BufferTooBig | Error::Pkcs11(_) | Error::NotSupported => None,
+        }
+    }
 }
 
 impl From<libloading::Error> for Error {
