@@ -1,7 +1,7 @@
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
-use crate::new::types::object::{Attribute, Object};
+use crate::new::types::object::{Attribute, ObjectHandle};
 use crate::new::types::session::Session;
 use crate::new::Pkcs11;
 use crate::new::{Error, Result};
@@ -15,7 +15,7 @@ impl Pkcs11 {
         mechanism: Mechanism,
         pub_key_template: &mut [Attribute],
         priv_key_template: &mut [Attribute],
-    ) -> Result<(Object, Object)> {
+    ) -> Result<(ObjectHandle, ObjectHandle)> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut pub_key_template: Vec<CK_ATTRIBUTE> = pub_key_template
             .iter_mut()
@@ -41,7 +41,10 @@ impl Pkcs11 {
             .into_result()?;
         }
 
-        Ok((Object::new(pub_handle), Object::new(priv_handle)))
+        Ok((
+            ObjectHandle::new(pub_handle),
+            ObjectHandle::new(priv_handle),
+        ))
     }
 
     pub fn generate_key(
@@ -49,7 +52,7 @@ impl Pkcs11 {
         session: Session,
         mechanism: Mechanism,
         key_template: &mut [Attribute],
-    ) -> Result<Object> {
+    ) -> Result<ObjectHandle> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut key_template: Vec<CK_ATTRIBUTE> =
             key_template.iter_mut().map(|attr| attr.into()).collect();
@@ -65,15 +68,15 @@ impl Pkcs11 {
             .into_result()?;
         }
 
-        Ok(Object::new(handle))
+        Ok(ObjectHandle::new(handle))
     }
 
     pub fn wrap_key(
         &self,
         _session: Session,
         _mechanism: Mechanism,
-        _wrapping_key: Object,
-        _wrapped_key: Object,
+        _wrapping_key: ObjectHandle,
+        _wrapped_key: ObjectHandle,
     ) -> Result<Vec<u8>> {
         Err(Error::NotSupported)
     }
@@ -82,10 +85,10 @@ impl Pkcs11 {
         &self,
         _session: Session,
         _mechanism: Mechanism,
-        _unwrapping_key: Object,
+        _unwrapping_key: ObjectHandle,
         _wrapped_key: &mut [u8],
         _wrapped_key_template: &mut [Attribute],
-    ) -> Result<Object> {
+    ) -> Result<ObjectHandle> {
         Err(Error::NotSupported)
     }
 
@@ -93,9 +96,9 @@ impl Pkcs11 {
         &self,
         _session: Session,
         _mechanism: Mechanism,
-        _base_key: Object,
+        _base_key: ObjectHandle,
         _derived_key_template: &mut [Attribute],
-    ) -> Result<Object> {
+    ) -> Result<ObjectHandle> {
         Err(Error::NotSupported)
     }
 }

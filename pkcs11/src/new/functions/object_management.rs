@@ -1,6 +1,6 @@
 use crate::get_pkcs11;
 use crate::new::types::function::{Rv, RvError};
-use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, Object};
+use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, ObjectHandle};
 use crate::new::types::session::Session;
 use crate::new::Pkcs11;
 use crate::new::{Error, Result};
@@ -17,7 +17,7 @@ impl Pkcs11 {
         &self,
         session: &Session,
         template: &mut [Attribute],
-    ) -> Result<Vec<Object>> {
+    ) -> Result<Vec<ObjectHandle>> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
 
         unsafe {
@@ -61,12 +61,16 @@ impl Pkcs11 {
             Rv::from(get_pkcs11!(self, C_FindObjectsFinal)(session.handle())).into_result()?;
         }
 
-        let objects = objects.into_iter().map(Object::new).collect();
+        let objects = objects.into_iter().map(ObjectHandle::new).collect();
 
         Ok(objects)
     }
 
-    pub fn create_object(&self, session: &Session, template: &mut [Attribute]) -> Result<Object> {
+    pub fn create_object(
+        &self,
+        session: &Session,
+        template: &mut [Attribute],
+    ) -> Result<ObjectHandle> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
         let mut object_handle = 0;
 
@@ -80,10 +84,10 @@ impl Pkcs11 {
             .into_result()?;
         }
 
-        Ok(Object::new(object_handle))
+        Ok(ObjectHandle::new(object_handle))
     }
 
-    pub fn destroy_object(&self, session: &Session, object: Object) -> Result<()> {
+    pub fn destroy_object(&self, session: &Session, object: ObjectHandle) -> Result<()> {
         unsafe {
             Rv::from(get_pkcs11!(self, C_DestroyObject)(
                 session.handle(),
@@ -101,7 +105,7 @@ impl Pkcs11 {
     pub fn get_attribute_value(
         &self,
         session: &Session,
-        object: &Object,
+        object: ObjectHandle,
         template: &mut [Attribute],
     ) -> Result<()> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
@@ -175,7 +179,7 @@ impl Pkcs11 {
     pub fn get_attribute_info(
         &self,
         session: &Session,
-        object: &Object,
+        object: ObjectHandle,
         attributes: &[AttributeType],
     ) -> Result<Vec<AttributeInfo>> {
         let mut template: Vec<CK_ATTRIBUTE> = attributes

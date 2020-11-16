@@ -1,7 +1,7 @@
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
-use crate::new::types::object::Object;
+use crate::new::types::object::ObjectHandle;
 use crate::new::types::session::Session;
 use crate::new::Pkcs11;
 use crate::new::Result;
@@ -13,7 +13,7 @@ impl Pkcs11 {
         &self,
         session: &Session,
         mechanism: Mechanism,
-        key: &Object,
+        key: ObjectHandle,
         encrypted_data: &mut [u8],
     ) -> Result<Vec<u8>> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
