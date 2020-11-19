@@ -265,9 +265,11 @@ impl From<&Attribute> for CK_ATTRIBUTE {
         Self {
             type_: attribute.attribute_type().into(),
             pValue: attribute.ptr(),
-            // Truncation from usize to CK_ULONG not checked
-            // Should be fine in most cases.
-            ulValueLen: attribute.len() as CK_ULONG,
+            // The panic should only happen if there is a bug.
+            ulValueLen: attribute
+                .len()
+                .try_into()
+                .expect("Can not convert the attribute length value (usize) to a CK_ULONG."),
         }
     }
 }
