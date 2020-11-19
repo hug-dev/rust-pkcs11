@@ -3,10 +3,8 @@ use crate::new::types::function::{Rv, RvError};
 use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, ObjectHandle};
 use crate::new::types::session::Session;
 use crate::new::Pkcs11;
-use crate::new::{Error, Result};
-use log::error;
+use crate::new::Result;
 use pkcs11_sys::*;
-use std::cmp::Ordering;
 use std::convert::TryInto;
 
 // Search 10 elements at a time
@@ -16,9 +14,9 @@ impl Pkcs11 {
     pub fn find_objects(
         &self,
         session: &Session,
-        template: &mut [Attribute],
+        template: &[Attribute],
     ) -> Result<Vec<ObjectHandle>> {
-        let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
+        let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
 
         unsafe {
             Rv::from(get_pkcs11!(self, C_FindObjectsInit)(
@@ -66,12 +64,8 @@ impl Pkcs11 {
         Ok(objects)
     }
 
-    pub fn create_object(
-        &self,
-        session: &Session,
-        template: &mut [Attribute],
-    ) -> Result<ObjectHandle> {
-        let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
+    pub fn create_object(&self, session: &Session, template: &[Attribute]) -> Result<ObjectHandle> {
+        let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
         let mut object_handle = 0;
 
         unsafe {
@@ -93,85 +87,6 @@ impl Pkcs11 {
                 session.handle(),
                 object.handle(),
             ))
-            .into_result()
-        }
-    }
-
-    // Return without modifying the template if:
-    // - any of the attribute if sensitive
-    // - any of the attribute does not exist in the object
-    // - any of the attribute given is too small to contain the value
-    // - any of the attribute given length is bigger than the one required
-    pub fn get_attribute_value(
-        &self,
-        session: &Session,
-        object: ObjectHandle,
-        template: &mut [Attribute],
-    ) -> Result<()> {
-        let mut template: Vec<CK_ATTRIBUTE> = template.iter_mut().map(|attr| attr.into()).collect();
-
-        // Check if the attributes are available and get the length
-        let mut test_template: Vec<CK_ATTRIBUTE> = template
-            .iter()
-            .cloned()
-            .map(|mut a| {
-                a.pValue = std::ptr::null_mut();
-                a
-            })
-            .collect();
-
-        unsafe {
-            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
-                session.handle(),
-                object.handle(),
-                test_template.as_mut_ptr(),
-                test_template.len().try_into()?,
-            ))
-            .into_result()
-            .map_err(|e| {
-                for attribute in &test_template {
-                    if attribute.ulValueLen == CK_UNAVAILABLE_INFORMATION {
-                        error!("Attribute {} is unavailable.", attribute.type_);
-                    }
-                }
-                e
-            })?;
-        }
-
-        // Check that the length of the attribute is the same one as in the originial iterator
-        template
-            .iter()
-            .cloned()
-            .zip(test_template.into_iter())
-            .map(
-                |(given, expected)| match given.ulValueLen.cmp(&expected.ulValueLen) {
-                    Ordering::Less => {
-                        error!(
-                            "Attribute of type {} has a buffer too small. {} expected, {} given.",
-                            given.type_, expected.ulValueLen, given.ulValueLen
-                        );
-                        Err(RvError::BufferTooSmall.into())
-                    }
-                    Ordering::Greater => {
-                        error!(
-                            "Attribute of type {} has a buffer too big. {} expected, {} given.",
-                            given.type_, expected.ulValueLen, given.ulValueLen
-                        );
-                        Err(Error::BufferTooBig)
-                    }
-                    Ordering::Equal => Ok(()),
-                },
-            )
-            .collect::<Result<()>>()?;
-
-        unsafe {
-            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
-                session.handle(),
-                object.handle(),
-                template.as_mut_ptr(),
-                template.len().try_into()?,
-            ))
-            // Add a or_else to log what attribute were missing in case of error
             .into_result()
         }
     }
@@ -210,5 +125,55 @@ impl Pkcs11 {
                 .collect::<Result<Vec<AttributeInfo>>>()?),
             Rv::Error(rv_error) => Err(rv_error.into()),
         }
+    }
+
+    // Ignore the unavailable one. One has to call the get_attribute_info method to check which
+    // ones are unavailable.
+    pub fn get_attributes(
+        &self,
+        session: &Session,
+        object: ObjectHandle,
+        attributes: &[AttributeType],
+    ) -> Result<Vec<Attribute>> {
+        let attrs_info = self.get_attribute_info(session, object, attributes)?;
+
+        // Allocating a chunk of memory where to put the attributes value.
+        let attrs_memory: Vec<(AttributeType, Vec<u8>)> = attrs_info
+            .iter()
+            .zip(attributes.iter())
+            .filter_map(|(attr_info, attr_type)| {
+                if let AttributeInfo::Available(size) = attr_info {
+                    Some((*attr_type, vec![0; *size]))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut template: Vec<CK_ATTRIBUTE> = attrs_memory
+            .iter()
+            .map(|(attr_type, memory)| {
+                Ok(CK_ATTRIBUTE {
+                    type_: (*attr_type).into(),
+                    pValue: memory.as_ptr() as *mut std::ffi::c_void,
+                    ulValueLen: memory.len().try_into()?,
+                })
+            })
+            .collect::<Result<Vec<CK_ATTRIBUTE>>>()?;
+
+        // This should only return OK as all attributes asked should be
+        // available. Concurrency problem?
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
+                session.handle(),
+                object.handle(),
+                template.as_mut_ptr(),
+                template.len().try_into()?,
+            ))
+            .into_result()?;
+        }
+
+        // Convert from CK_ATTRIBUTE to Attribute
+        template.into_iter().map(|attr| attr.try_into()).collect()
     }
 }

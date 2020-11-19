@@ -13,18 +13,14 @@ impl Pkcs11 {
         &self,
         session: &Session,
         mechanism: Mechanism,
-        pub_key_template: &mut [Attribute],
-        priv_key_template: &mut [Attribute],
+        pub_key_template: &[Attribute],
+        priv_key_template: &[Attribute],
     ) -> Result<(ObjectHandle, ObjectHandle)> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
-        let mut pub_key_template: Vec<CK_ATTRIBUTE> = pub_key_template
-            .iter_mut()
-            .map(|attr| attr.into())
-            .collect();
-        let mut priv_key_template: Vec<CK_ATTRIBUTE> = priv_key_template
-            .iter_mut()
-            .map(|attr| attr.into())
-            .collect();
+        let mut pub_key_template: Vec<CK_ATTRIBUTE> =
+            pub_key_template.iter().map(|attr| attr.into()).collect();
+        let mut priv_key_template: Vec<CK_ATTRIBUTE> =
+            priv_key_template.iter().map(|attr| attr.into()).collect();
         let mut pub_handle = 0;
         let mut priv_handle = 0;
         unsafe {
@@ -51,11 +47,11 @@ impl Pkcs11 {
         &self,
         session: Session,
         mechanism: Mechanism,
-        key_template: &mut [Attribute],
+        key_template: &[Attribute],
     ) -> Result<ObjectHandle> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut key_template: Vec<CK_ATTRIBUTE> =
-            key_template.iter_mut().map(|attr| attr.into()).collect();
+            key_template.iter().map(|attr| attr.into()).collect();
         let mut handle = 0;
         unsafe {
             Rv::from(get_pkcs11!(self, C_GenerateKey)(
@@ -86,8 +82,8 @@ impl Pkcs11 {
         _session: Session,
         _mechanism: Mechanism,
         _unwrapping_key: ObjectHandle,
-        _wrapped_key: &mut [u8],
-        _wrapped_key_template: &mut [Attribute],
+        _wrapped_key: &[u8],
+        _wrapped_key_template: &[Attribute],
     ) -> Result<ObjectHandle> {
         Err(Error::NotSupported)
     }
@@ -97,7 +93,7 @@ impl Pkcs11 {
         _session: Session,
         _mechanism: Mechanism,
         _base_key: ObjectHandle,
-        _derived_key_template: &mut [Attribute],
+        _derived_key_template: &[Attribute],
     ) -> Result<ObjectHandle> {
         Err(Error::NotSupported)
     }
