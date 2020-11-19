@@ -14,7 +14,7 @@ impl Pkcs11 {
         session: &Session,
         mechanism: Mechanism,
         key: ObjectHandle,
-        encrypted_data: &mut [u8],
+        encrypted_data: &[u8],
     ) -> Result<Vec<u8>> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut data_len = 0;
@@ -32,7 +32,8 @@ impl Pkcs11 {
         unsafe {
             Rv::from(get_pkcs11!(self, C_Decrypt)(
                 session.handle(),
-                encrypted_data.as_mut_ptr(),
+                // C_Decrypt should not modify this buffer
+                encrypted_data.as_ptr() as *mut u8,
                 encrypted_data.len().try_into()?,
                 std::ptr::null_mut(),
                 &mut data_len,
@@ -45,7 +46,7 @@ impl Pkcs11 {
         unsafe {
             Rv::from(get_pkcs11!(self, C_Decrypt)(
                 session.handle(),
-                encrypted_data.as_mut_ptr(),
+                encrypted_data.as_ptr() as *mut u8,
                 encrypted_data.len().try_into()?,
                 data.as_mut_ptr(),
                 &mut data_len,

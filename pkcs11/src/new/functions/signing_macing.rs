@@ -14,7 +14,7 @@ impl Pkcs11 {
         session: &Session,
         mechanism: Mechanism,
         key: ObjectHandle,
-        data: &mut [u8],
+        data: &[u8],
     ) -> Result<Vec<u8>> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
         let mut signature_len = 0;
@@ -32,7 +32,7 @@ impl Pkcs11 {
         unsafe {
             Rv::from(get_pkcs11!(self, C_Sign)(
                 session.handle(),
-                data.as_mut_ptr(),
+                data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 std::ptr::null_mut(),
                 &mut signature_len,
@@ -46,7 +46,7 @@ impl Pkcs11 {
         unsafe {
             Rv::from(get_pkcs11!(self, C_Sign)(
                 session.handle(),
-                data.as_mut_ptr(),
+                data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 signature.as_mut_ptr(),
                 &mut signature_len,
@@ -64,8 +64,8 @@ impl Pkcs11 {
         session: &Session,
         mechanism: Mechanism,
         key: ObjectHandle,
-        data: &mut [u8],
-        signature: &mut [u8],
+        data: &[u8],
+        signature: &[u8],
     ) -> Result<()> {
         let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
 
@@ -81,9 +81,9 @@ impl Pkcs11 {
         unsafe {
             Rv::from(get_pkcs11!(self, C_Verify)(
                 session.handle(),
-                data.as_mut_ptr(),
+                data.as_ptr() as *mut u8,
                 data.len().try_into()?,
-                signature.as_mut_ptr(),
+                signature.as_ptr() as *mut u8,
                 signature.len().try_into()?,
             ))
             .into_result()

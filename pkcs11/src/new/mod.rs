@@ -56,10 +56,7 @@ pub enum Error {
     /// this error. It is a direct forward of the underlying error from libloading.
     LibraryLoading(libloading::Error),
 
-    /// All PKCS#11 functions that return non-zero translate to this error. Note though that only true
-    /// errors will be returned as such. Some functions that return non-zero values that are not errors
-    /// will not be returned as errors. The affected functions are:
-    /// `get_attribute_value`, `get_function_status`, `cancel_function` and `wait_for_slot_event`
+    /// All PKCS#11 functions that return non-zero translate to this error.
     Pkcs11(types::function::RvError),
 
     /// This error marks a feature that is not yet supported by the PKCS11 Rust abstraction layer.
@@ -67,6 +64,8 @@ pub enum Error {
 
     /// Error happening while converting types
     TryFromInt(std::num::TryFromIntError),
+
+    TryFromSlice(std::array::TryFromSliceError),
 
     NulError(std::ffi::NulError),
 
@@ -82,6 +81,7 @@ impl fmt::Display for Error {
             Error::Pkcs11(e) => write!(f, "PKCS11 error: {}", e),
             Error::NotSupported => write!(f, "Feature not supported"),
             Error::TryFromInt(e) => write!(f, "Conversion between integers failed ({})", e),
+            Error::TryFromSlice(e) => write!(f, "Error converting slice to array ({})", e),
             Error::NulError(e) => write!(f, "An interior nul byte was found ({})", e),
             Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
             Error::NullFunctionPointer => write!(f, "Calling a NULL function pointer"),
@@ -94,6 +94,7 @@ impl std::error::Error for Error {
         match self {
             Error::LibraryLoading(e) => Some(e),
             Error::TryFromInt(e) => Some(e),
+            Error::TryFromSlice(e) => Some(e),
             Error::NulError(e) => Some(e),
             Error::BufferTooBig
             | Error::Pkcs11(_)
@@ -115,6 +116,12 @@ impl From<std::num::TryFromIntError> for Error {
     }
 }
 
+impl From<std::array::TryFromSliceError> for Error {
+    fn from(err: std::array::TryFromSliceError) -> Error {
+        Error::TryFromSlice(err)
+    }
+}
+
 impl From<std::ffi::NulError> for Error {
     fn from(err: std::ffi::NulError) -> Error {
         Error::NulError(err)
@@ -132,6 +139,7 @@ mod tests {
     use crate::new::types::Flags;
     use crate::new::Pkcs11;
     use pkcs11_sys::*;
+    use std::pin::Pin;
 
     #[test]
     fn sign_verify() {
@@ -158,50 +166,36 @@ mod tests {
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
 
-        let mut attr_true = pkcs11_sys::CK_TRUE;
-        let mut attr_true1 = pkcs11_sys::CK_TRUE;
-        let mut attr_false = pkcs11_sys::CK_FALSE;
-        let mut public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
-        let mut modulus_bits: u64 = 1024;
+        let public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
+        let modulus_bits: u64 = 1024;
 
         // pub key template
-        let mut pub_key_template = vec![
-            Attribute::Token(&mut attr_true),
-            Attribute::Private(&mut attr_false),
-            Attribute::PublicExponent(&mut public_exponent),
-            Attribute::ModulusBits(&mut modulus_bits),
+        let pub_key_template = vec![
+            Attribute::Token(Box::pin(CK_TRUE)),
+            Attribute::Private(Box::pin(CK_FALSE)),
+            Attribute::PublicExponent(Pin::new(public_exponent)),
+            Attribute::ModulusBits(Box::pin(modulus_bits)),
         ];
 
         // priv key template
-        let mut priv_key_template = vec![Attribute::Token(&mut attr_true1)];
+        let priv_key_template = vec![Attribute::Token(Box::pin(CK_TRUE))];
 
         // generate a key pair
         let (public, private) = pkcs11
-            .generate_key_pair(
-                &session,
-                mechanism,
-                &mut pub_key_template,
-                &mut priv_key_template,
-            )
+            .generate_key_pair(&session, mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to sign
-        let mut data = [0xFF, 0x55, 0xDD];
+        let data = [0xFF, 0x55, 0xDD];
 
         // sign something with it
-        let mut signature = pkcs11
-            .sign(&session, Mechanism::RsaPkcs, private, &mut data)
+        let signature = pkcs11
+            .sign(&session, Mechanism::RsaPkcs, private, &data)
             .unwrap();
 
         // verify the signature
         pkcs11
-            .verify(
-                &session,
-                Mechanism::RsaPkcs,
-                public,
-                &mut data,
-                &mut signature,
-            )
+            .verify(&session, Mechanism::RsaPkcs, public, &data, &signature)
             .unwrap();
 
         // delete keys
@@ -240,50 +234,40 @@ mod tests {
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
 
-        let mut attr_true = pkcs11_sys::CK_TRUE;
-        let mut attr_true1 = pkcs11_sys::CK_TRUE;
-        let mut attr_true2 = pkcs11_sys::CK_TRUE;
-        let mut attr_true3 = pkcs11_sys::CK_TRUE;
-        let mut attr_false = pkcs11_sys::CK_FALSE;
-        let mut public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
-        let mut modulus_bits: u64 = 1024;
+        let public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
+        let modulus_bits: u64 = 1024;
 
         // pub key template
-        let mut pub_key_template = vec![
-            Attribute::Token(&mut attr_true),
-            Attribute::Private(&mut attr_false),
-            Attribute::PublicExponent(&mut public_exponent),
-            Attribute::ModulusBits(&mut modulus_bits),
-            Attribute::Encrypt(&mut attr_true3),
+        let pub_key_template = vec![
+            Attribute::Token(Box::pin(CK_TRUE)),
+            Attribute::Private(Box::pin(CK_FALSE)),
+            Attribute::PublicExponent(Pin::new(public_exponent)),
+            Attribute::ModulusBits(Box::pin(modulus_bits)),
+            Attribute::Encrypt(Box::pin(CK_TRUE)),
         ];
 
         // priv key template
-        let mut priv_key_template = vec![
-            Attribute::Token(&mut attr_true1),
-            Attribute::Decrypt(&mut attr_true2),
+        let priv_key_template = vec![
+            Attribute::Token(Box::pin(CK_TRUE)),
+            Attribute::Decrypt(Box::pin(CK_TRUE)),
         ];
 
         // generate a key pair
         let (public, private) = pkcs11
-            .generate_key_pair(
-                &session,
-                mechanism,
-                &mut pub_key_template,
-                &mut priv_key_template,
-            )
+            .generate_key_pair(&session, mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to encrypt
-        let mut data = vec![0xFF, 0x55, 0xDD];
+        let data = vec![0xFF, 0x55, 0xDD];
 
         // encrypt something with it
-        let mut encrypted_data = pkcs11
-            .encrypt(&session, Mechanism::RsaPkcs, public, &mut data)
+        let encrypted_data = pkcs11
+            .encrypt(&session, Mechanism::RsaPkcs, public, &data)
             .unwrap();
 
         // decrypt
         let decrypted_data = pkcs11
-            .decrypt(&session, Mechanism::RsaPkcs, private, &mut encrypted_data)
+            .decrypt(&session, Mechanism::RsaPkcs, private, &encrypted_data)
             .unwrap();
 
         // The decrypted buffer is bigger than the original one.
@@ -322,56 +306,47 @@ mod tests {
         // log in the session
         pkcs11.login(&session, UserType::User, &pin).unwrap();
 
-        let mut attr_true = pkcs11_sys::CK_TRUE;
-        let mut attr_true1 = pkcs11_sys::CK_TRUE;
-        let mut attr_false = pkcs11_sys::CK_FALSE;
-        let mut public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
-        let mut modulus = vec![0xFF; 1024];
-        let mut class = CKO_PUBLIC_KEY;
-        let mut key_type = CKK_RSA;
+        let public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
+        let modulus = vec![0xFF; 1024];
 
-        let mut template = vec![
-            Attribute::Token(&mut attr_true),
-            Attribute::Private(&mut attr_false),
-            Attribute::PublicExponent(&mut public_exponent),
-            Attribute::Modulus(&mut modulus),
-            Attribute::Class(&mut class),
-            Attribute::KeyType(&mut key_type),
-            Attribute::Verify(&mut attr_true1),
+        let template = vec![
+            Attribute::Token(Box::pin(CK_TRUE)),
+            Attribute::Private(Box::pin(CK_FALSE)),
+            Attribute::PublicExponent(Pin::new(public_exponent)),
+            Attribute::Modulus(Pin::new(modulus.clone())),
+            Attribute::Class(Box::pin(CKO_PUBLIC_KEY)),
+            Attribute::KeyType(Box::pin(CKK_RSA)),
+            Attribute::Verify(Box::pin(CK_TRUE)),
         ];
 
         {
             // Intentionally forget the object handle to find it later
-            let _public_key = pkcs11.create_object(&session, &mut template).unwrap();
+            let _public_key = pkcs11.create_object(&session, &template).unwrap();
         }
 
-        let is_it_the_public_key = pkcs11
-            .find_objects(&session, &mut template)
-            .unwrap()
-            .remove(0);
+        let is_it_the_public_key = pkcs11.find_objects(&session, &template).unwrap().remove(0);
 
         let attribute_info = pkcs11
             .get_attribute_info(&session, is_it_the_public_key, &[AttributeType::Modulus])
             .unwrap()
             .remove(0);
 
-        let size = if let AttributeInfo::Available(size) = attribute_info {
-            size
+        if let AttributeInfo::Available(size) = attribute_info {
+            assert_eq!(size, 1024);
         } else {
             panic!("The Modulus attribute was expected to be present.")
         };
 
-        let mut modulus_cmp = vec![0; size];
+        let attr = pkcs11
+            .get_attributes(&session, is_it_the_public_key, &[AttributeType::Modulus])
+            .unwrap()
+            .remove(0);
 
-        pkcs11
-            .get_attribute_value(
-                &session,
-                is_it_the_public_key,
-                &mut [Attribute::Modulus(&mut modulus_cmp)],
-            )
-            .unwrap();
-
-        assert_eq!(modulus, modulus_cmp);
+        if let Attribute::Modulus(modulus_cmp) = attr {
+            assert_eq!(modulus[..], modulus_cmp[..]);
+        } else {
+            panic!("Expected the Modulus attribute.");
+        }
 
         // delete key
         pkcs11
