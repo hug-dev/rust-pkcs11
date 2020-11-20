@@ -7,17 +7,19 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 use std::ptr::null_mut;
 
-const RSA_PKCS_KEY_PAIR_GEN: MechanismType = MechanismType {
-    val: CKM_RSA_PKCS_KEY_PAIR_GEN,
-};
-const RSA_PKCS: MechanismType = MechanismType { val: CKM_RSA_PKCS };
-
 #[derive(Debug, PartialEq, Eq)]
 // transparent so that a vector of MechanismType should have the same layout than a vector of
 // CK_MECHANISM_TYPE.
 #[repr(transparent)]
 pub struct MechanismType {
     val: CK_MECHANISM_TYPE,
+}
+
+impl MechanismType {
+    const RSA_PKCS_KEY_PAIR_GEN: MechanismType = MechanismType {
+        val: CKM_RSA_PKCS_KEY_PAIR_GEN,
+    };
+    const RSA_PKCS: MechanismType = MechanismType { val: CKM_RSA_PKCS };
 }
 
 impl Deref for MechanismType {
@@ -39,7 +41,8 @@ impl TryFrom<CK_MECHANISM_TYPE> for MechanismType {
 
     fn try_from(mechanism_type: CK_MECHANISM_TYPE) -> Result<Self, Self::Error> {
         match mechanism_type {
-            CKM_RSA_PKCS_KEY_PAIR_GEN => Ok(RSA_PKCS_KEY_PAIR_GEN),
+            CKM_RSA_PKCS_KEY_PAIR_GEN => Ok(MechanismType::RSA_PKCS_KEY_PAIR_GEN),
+            CKM_RSA_PKCS => Ok(MechanismType::RSA_PKCS),
             other => {
                 error!("Mechanism type {} is not supported.", other);
                 Err(Error::NotSupported)
@@ -56,8 +59,8 @@ pub enum Mechanism {
 impl Mechanism {
     pub fn mechanism_type(&self) -> MechanismType {
         match self {
-            Mechanism::RsaPkcsKeyPairGen => RSA_PKCS_KEY_PAIR_GEN,
-            Mechanism::RsaPkcs => RSA_PKCS,
+            Mechanism::RsaPkcsKeyPairGen => MechanismType::RSA_PKCS_KEY_PAIR_GEN,
+            Mechanism::RsaPkcs => MechanismType::RSA_PKCS,
         }
     }
 }

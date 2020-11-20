@@ -72,6 +72,8 @@ pub enum Error {
     BufferTooBig,
 
     NullFunctionPointer,
+
+    InvalidValue,
 }
 
 impl fmt::Display for Error {
@@ -85,6 +87,7 @@ impl fmt::Display for Error {
             Error::NulError(e) => write!(f, "An interior nul byte was found ({})", e),
             Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
             Error::NullFunctionPointer => write!(f, "Calling a NULL function pointer"),
+            Error::InvalidValue => write!(f, "The value is not one of the expected options"),
         }
     }
 }
@@ -99,7 +102,8 @@ impl std::error::Error for Error {
             Error::BufferTooBig
             | Error::Pkcs11(_)
             | Error::NotSupported
-            | Error::NullFunctionPointer => None,
+            | Error::NullFunctionPointer
+            | Error::InvalidValue => None,
         }
     }
 }
