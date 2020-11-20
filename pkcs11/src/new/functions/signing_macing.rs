@@ -12,11 +12,11 @@ impl Pkcs11 {
     pub fn sign(
         &self,
         session: &Session,
-        mechanism: Mechanism,
+        mechanism: &Mechanism,
         key: ObjectHandle,
         data: &[u8],
     ) -> Result<Vec<u8>> {
-        let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
+        let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut signature_len = 0;
 
         unsafe {
@@ -62,12 +62,12 @@ impl Pkcs11 {
     pub fn verify(
         &self,
         session: &Session,
-        mechanism: Mechanism,
+        mechanism: &Mechanism,
         key: ObjectHandle,
         data: &[u8],
         signature: &[u8],
     ) -> Result<()> {
-        let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
+        let mut mechanism: CK_MECHANISM = mechanism.into();
 
         unsafe {
             Rv::from(get_pkcs11!(self, C_VerifyInit)(

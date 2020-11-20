@@ -12,11 +12,11 @@ impl Pkcs11 {
     pub fn generate_key_pair(
         &self,
         session: &Session,
-        mechanism: Mechanism,
+        mechanism: &Mechanism,
         pub_key_template: &[Attribute],
         priv_key_template: &[Attribute],
     ) -> Result<(ObjectHandle, ObjectHandle)> {
-        let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
+        let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut pub_key_template: Vec<CK_ATTRIBUTE> =
             pub_key_template.iter().map(|attr| attr.into()).collect();
         let mut priv_key_template: Vec<CK_ATTRIBUTE> =
@@ -46,10 +46,10 @@ impl Pkcs11 {
     pub fn generate_key(
         &self,
         session: Session,
-        mechanism: Mechanism,
+        mechanism: &Mechanism,
         key_template: &[Attribute],
     ) -> Result<ObjectHandle> {
-        let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
+        let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut key_template: Vec<CK_ATTRIBUTE> =
             key_template.iter().map(|attr| attr.into()).collect();
         let mut handle = 0;
@@ -70,7 +70,7 @@ impl Pkcs11 {
     pub fn wrap_key(
         &self,
         _session: Session,
-        _mechanism: Mechanism,
+        _mechanism: &Mechanism,
         _wrapping_key: ObjectHandle,
         _wrapped_key: ObjectHandle,
     ) -> Result<Vec<u8>> {
@@ -80,7 +80,7 @@ impl Pkcs11 {
     pub fn unwrap_key(
         &self,
         _session: Session,
-        _mechanism: Mechanism,
+        _mechanism: &Mechanism,
         _unwrapping_key: ObjectHandle,
         _wrapped_key: &[u8],
         _wrapped_key_template: &[Attribute],
@@ -91,7 +91,7 @@ impl Pkcs11 {
     pub fn derive_key(
         &self,
         _session: Session,
-        _mechanism: Mechanism,
+        _mechanism: &Mechanism,
         _base_key: ObjectHandle,
         _derived_key_template: &[Attribute],
     ) -> Result<ObjectHandle> {

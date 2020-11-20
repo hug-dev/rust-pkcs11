@@ -5,58 +5,12 @@ pub mod object;
 pub mod session;
 pub mod slot_token;
 
-use pkcs11_sys::CKF_ARRAY_ATTRIBUTE;
-use pkcs11_sys::CKF_CLOCK_ON_TOKEN;
-use pkcs11_sys::CKF_DECRYPT;
-use pkcs11_sys::CKF_DERIVE;
-use pkcs11_sys::CKF_DIGEST;
-use pkcs11_sys::CKF_DONT_BLOCK;
-use pkcs11_sys::CKF_DUAL_CRYPTO_OPERATIONS;
-use pkcs11_sys::CKF_EC_COMPRESS;
-use pkcs11_sys::CKF_EC_F_P;
-use pkcs11_sys::CKF_EC_NAMEDCURVE;
-use pkcs11_sys::CKF_EC_UNCOMPRESS;
-use pkcs11_sys::CKF_ENCRYPT;
-use pkcs11_sys::CKF_EXCLUDE_CHALLENGE;
-use pkcs11_sys::CKF_EXCLUDE_COUNTER;
-use pkcs11_sys::CKF_EXCLUDE_PIN;
-use pkcs11_sys::CKF_EXCLUDE_TIME;
-use pkcs11_sys::CKF_EXTENSION;
-use pkcs11_sys::CKF_GENERATE;
-use pkcs11_sys::CKF_GENERATE_KEY_PAIR;
-use pkcs11_sys::CKF_HW; /* performed by HW */
-use pkcs11_sys::CKF_HW_SLOT;
-use pkcs11_sys::CKF_LIBRARY_CANT_CREATE_OS_THREADS;
-use pkcs11_sys::CKF_LOGIN_REQUIRED;
-use pkcs11_sys::CKF_NEXT_OTP;
-use pkcs11_sys::CKF_OS_LOCKING_OK;
-use pkcs11_sys::CKF_PROTECTED_AUTHENTICATION_PATH;
-use pkcs11_sys::CKF_REMOVABLE_DEVICE;
-use pkcs11_sys::CKF_RESTORE_KEY_NOT_NEEDED;
-use pkcs11_sys::CKF_RNG;
-use pkcs11_sys::CKF_RW_SESSION;
-use pkcs11_sys::CKF_SECONDARY_AUTHENTICATION;
-use pkcs11_sys::CKF_SERIAL_SESSION;
-use pkcs11_sys::CKF_SIGN;
-use pkcs11_sys::CKF_SIGN_RECOVER;
-use pkcs11_sys::CKF_SO_PIN_COUNT_LOW;
-use pkcs11_sys::CKF_SO_PIN_FINAL_TRY;
-use pkcs11_sys::CKF_SO_PIN_LOCKED;
-use pkcs11_sys::CKF_SO_PIN_TO_BE_CHANGED;
-use pkcs11_sys::CKF_TOKEN_INITIALIZED;
-use pkcs11_sys::CKF_TOKEN_PRESENT;
-use pkcs11_sys::CKF_UNWRAP;
-use pkcs11_sys::CKF_USER_FRIENDLY_OTP;
-use pkcs11_sys::CKF_USER_PIN_COUNT_LOW;
-use pkcs11_sys::CKF_USER_PIN_FINAL_TRY;
-use pkcs11_sys::CKF_USER_PIN_INITIALIZED;
-use pkcs11_sys::CKF_USER_PIN_LOCKED;
-use pkcs11_sys::CKF_USER_PIN_TO_BE_CHANGED;
-use pkcs11_sys::CKF_VERIFY;
-use pkcs11_sys::CKF_VERIFY_RECOVER;
-use pkcs11_sys::CKF_WRAP;
-use pkcs11_sys::CKF_WRITE_PROTECTED;
-use pkcs11_sys::CK_FLAGS;
+use crate::new::{Error, Result};
+use log::error;
+use pkcs11_sys::*;
+use std::convert::TryFrom;
+use std::convert::TryInto;
+use std::ops::Deref;
 
 #[derive(Default)]
 pub struct Flags {
@@ -335,5 +289,77 @@ impl Flags {
 impl From<Flags> for pkcs11_sys::CK_FLAGS {
     fn from(flags: Flags) -> Self {
         flags.flags
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug)]
+pub enum Bbool {
+    False = 0,
+    True = 1,
+}
+
+impl TryFrom<&[u8]> for Bbool {
+    type Error = Error;
+
+    fn try_from(slice: &[u8]) -> Result<Self> {
+        CK_BBOOL::from_ne_bytes(slice.try_into()?).try_into()
+    }
+}
+
+impl From<Bbool> for CK_BBOOL {
+    fn from(bbool: Bbool) -> Self {
+        bbool as CK_BBOOL
+    }
+}
+
+impl From<bool> for Bbool {
+    fn from(val: bool) -> Self {
+        if val {
+            Bbool::True
+        } else {
+            Bbool::False
+        }
+    }
+}
+
+impl TryFrom<CK_BBOOL> for Bbool {
+    type Error = Error;
+
+    fn try_from(bbool: CK_BBOOL) -> Result<Self> {
+        match bbool {
+            CK_FALSE => Ok(Bbool::False),
+            CK_TRUE => Ok(Bbool::True),
+            other => {
+                error!("Bbool value {} is not supported.", other);
+                Err(Error::NotSupported)
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Ulong {
+    val: CK_ULONG,
+}
+
+impl Deref for Ulong {
+    type Target = CK_ULONG;
+
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
+}
+
+impl From<Ulong> for CK_ULONG {
+    fn from(ulong: Ulong) -> Self {
+        *ulong
+    }
+}
+
+impl From<CK_ULONG> for Ulong {
+    fn from(ulong: CK_ULONG) -> Self {
+        Ulong { val: ulong }
     }
 }
