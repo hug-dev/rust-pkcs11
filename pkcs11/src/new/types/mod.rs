@@ -331,8 +331,8 @@ impl TryFrom<CK_BBOOL> for Bbool {
             CK_FALSE => Ok(Bbool::False),
             CK_TRUE => Ok(Bbool::True),
             other => {
-                error!("Bbool value {} is not supported.", other);
-                Err(Error::NotSupported)
+                error!("Bbool value {} is invalid.", other);
+                Err(Error::InvalidValue)
             }
         }
     }
