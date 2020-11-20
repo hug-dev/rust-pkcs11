@@ -1,10 +1,12 @@
-use crate::new::Error;
+use crate::new::types::mechanism::MechanismType;
+use crate::new::types::{Bbool, Ulong};
+use crate::new::{Error, Result};
 use log::error;
 use pkcs11_sys::*;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::c_void;
-use std::pin::Pin;
+use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone)]
 pub enum AttributeType {
@@ -74,7 +76,7 @@ impl From<AttributeType> for CK_ATTRIBUTE_TYPE {
 impl TryFrom<CK_ATTRIBUTE_TYPE> for AttributeType {
     type Error = Error;
 
-    fn try_from(attribute_type: CK_ATTRIBUTE_TYPE) -> Result<Self, Error> {
+    fn try_from(attribute_type: CK_ATTRIBUTE_TYPE) -> Result<Self> {
         match attribute_type {
             CKA_ALLOWED_MECHANISMS => Ok(AttributeType::AllowedMechanisms),
             CKA_BASE => Ok(AttributeType::Base),
@@ -113,33 +115,33 @@ impl TryFrom<CK_ATTRIBUTE_TYPE> for AttributeType {
 
 #[derive(Debug)]
 pub enum Attribute {
-    AllowedMechanisms(Pin<Vec<CK_MECHANISM_TYPE>>),
-    Base(Pin<Vec<u8>>),
-    Class(Pin<Box<CK_OBJECT_CLASS>>),
-    Copyable(Pin<Box<CK_BBOOL>>),
-    Decrypt(Pin<Box<CK_BBOOL>>),
-    Derive(Pin<Box<CK_BBOOL>>),
-    Encrypt(Pin<Box<CK_BBOOL>>),
-    Extractable(Pin<Box<CK_BBOOL>>),
-    Id(Pin<Vec<u8>>),
-    KeyType(Pin<Box<CK_KEY_TYPE>>),
-    Label(Pin<Vec<u8>>),
-    Modifiable(Pin<Box<CK_BBOOL>>),
-    Modulus(Pin<Vec<u8>>),
-    ModulusBits(Pin<Box<CK_ULONG>>),
-    Prime(Pin<Vec<u8>>),
-    Private(Pin<Box<CK_BBOOL>>),
-    PublicExponent(Pin<Vec<u8>>),
-    Sensitive(Pin<Box<CK_BBOOL>>),
-    Sign(Pin<Box<CK_BBOOL>>),
-    SignRecover(Pin<Box<CK_BBOOL>>),
-    Token(Pin<Box<CK_BBOOL>>),
-    Unwrap(Pin<Box<CK_BBOOL>>),
-    Value(Pin<Vec<u8>>),
-    ValueLen(Pin<Box<CK_ULONG>>),
-    Verify(Pin<Box<CK_BBOOL>>),
-    VerifyRecover(Pin<Box<CK_BBOOL>>),
-    Wrap(Pin<Box<CK_BBOOL>>),
+    AllowedMechanisms(Vec<MechanismType>),
+    Base(Vec<u8>),
+    Class(ObjectClass),
+    Copyable(Bbool),
+    Decrypt(Bbool),
+    Derive(Bbool),
+    Encrypt(Bbool),
+    Extractable(Bbool),
+    Id(Vec<u8>),
+    KeyType(KeyType),
+    Label(Vec<u8>),
+    Modifiable(Bbool),
+    Modulus(Vec<u8>),
+    ModulusBits(Ulong),
+    Prime(Vec<u8>),
+    Private(Bbool),
+    PublicExponent(Vec<u8>),
+    Sensitive(Bbool),
+    Sign(Bbool),
+    SignRecover(Bbool),
+    Token(Bbool),
+    Unwrap(Bbool),
+    Value(Vec<u8>),
+    ValueLen(Ulong),
+    Verify(Bbool),
+    VerifyRecover(Bbool),
+    Wrap(Bbool),
 }
 
 impl Attribute {
@@ -192,7 +194,7 @@ impl Attribute {
             | Attribute::Unwrap(_)
             | Attribute::Verify(_)
             | Attribute::VerifyRecover(_)
-            | Attribute::Wrap(_) => std::mem::size_of::<CK_BBOOL>(),
+            | Attribute::Wrap(_) => 1,
             Attribute::Base(_) => 1,
             Attribute::Class(_) => std::mem::size_of::<CK_OBJECT_CLASS>(),
             Attribute::KeyType(_) => std::mem::size_of::<CK_KEY_TYPE>(),
@@ -235,10 +237,10 @@ impl Attribute {
             | Attribute::Unwrap(b)
             | Attribute::Verify(b)
             | Attribute::VerifyRecover(b)
-            | Attribute::Wrap(b) => b.as_ref().get_ref() as *const _ as *mut c_void,
+            | Attribute::Wrap(b) => b as *const _ as *mut c_void,
             // CK_ULONG
             Attribute::ModulusBits(val) | Attribute::ValueLen(val) => {
-                val.as_ref().get_ref() as *const _ as *mut c_void
+                val as *const _ as *mut c_void
             }
             // Vec<u8>
             Attribute::Base(bytes)
@@ -249,13 +251,9 @@ impl Attribute {
             | Attribute::Value(bytes)
             | Attribute::Id(bytes) => bytes.as_ptr() as *mut c_void,
             // Unique types
-            Attribute::Class(object_class) => {
-                object_class.as_ref().get_ref() as *const _ as *mut c_void
-            }
-            Attribute::KeyType(key_type) => key_type.as_ref().get_ref() as *const _ as *mut c_void,
-            Attribute::AllowedMechanisms(mechanisms) => {
-                mechanisms.as_ref().get_ref() as *const _ as *mut c_void
-            }
+            Attribute::Class(object_class) => object_class as *const _ as *mut c_void,
+            Attribute::KeyType(key_type) => key_type as *const _ as *mut c_void,
+            Attribute::AllowedMechanisms(mechanisms) => mechanisms.as_ptr() as *mut c_void,
         }
     }
 }
@@ -277,7 +275,7 @@ impl From<&Attribute> for CK_ATTRIBUTE {
 impl TryFrom<CK_ATTRIBUTE> for Attribute {
     type Error = Error;
 
-    fn try_from(attribute: CK_ATTRIBUTE) -> Result<Self, Error> {
+    fn try_from(attribute: CK_ATTRIBUTE) -> Result<Self> {
         let attr_type = AttributeType::try_from(attribute.type_)?;
         // Cast from c_void to u8
         let val = unsafe {
@@ -288,73 +286,43 @@ impl TryFrom<CK_ATTRIBUTE> for Attribute {
         };
         match attr_type {
             // CK_BBOOL
-            AttributeType::Copyable => Ok(Attribute::Copyable(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Decrypt => Ok(Attribute::Decrypt(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Derive => Ok(Attribute::Derive(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Encrypt => Ok(Attribute::Encrypt(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Extractable => Ok(Attribute::Extractable(Box::pin(
-                CK_BBOOL::from_ne_bytes(val[0..1].try_into()?),
-            ))),
-            AttributeType::Modifiable => Ok(Attribute::Modifiable(Box::pin(
-                CK_BBOOL::from_ne_bytes(val[0..1].try_into()?),
-            ))),
-            AttributeType::Private => Ok(Attribute::Private(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Sensitive => Ok(Attribute::Sensitive(Box::pin(
-                CK_BBOOL::from_ne_bytes(val[0..1].try_into()?),
-            ))),
-            AttributeType::Sign => Ok(Attribute::Sign(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::SignRecover => Ok(Attribute::SignRecover(Box::pin(
-                CK_BBOOL::from_ne_bytes(val[0..1].try_into()?),
-            ))),
-            AttributeType::Token => Ok(Attribute::Token(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Unwrap => Ok(Attribute::Unwrap(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::Verify => Ok(Attribute::Verify(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
-            AttributeType::VerifyRecover => Ok(Attribute::VerifyRecover(Box::pin(
-                CK_BBOOL::from_ne_bytes(val[0..1].try_into()?),
-            ))),
-            AttributeType::Wrap => Ok(Attribute::Wrap(Box::pin(CK_BBOOL::from_ne_bytes(
-                val[0..1].try_into()?,
-            )))),
+            AttributeType::Copyable => Ok(Attribute::Copyable(val.try_into()?)),
+            AttributeType::Decrypt => Ok(Attribute::Decrypt(val.try_into()?)),
+            AttributeType::Derive => Ok(Attribute::Derive(val.try_into()?)),
+            AttributeType::Encrypt => Ok(Attribute::Encrypt(val.try_into()?)),
+            AttributeType::Extractable => Ok(Attribute::Extractable(val.try_into()?)),
+            AttributeType::Modifiable => Ok(Attribute::Modifiable(val.try_into()?)),
+            AttributeType::Private => Ok(Attribute::Private(val.try_into()?)),
+            AttributeType::Sensitive => Ok(Attribute::Sensitive(val.try_into()?)),
+            AttributeType::Sign => Ok(Attribute::Sign(val.try_into()?)),
+            AttributeType::SignRecover => Ok(Attribute::SignRecover(val.try_into()?)),
+            AttributeType::Token => Ok(Attribute::Token(val.try_into()?)),
+            AttributeType::Unwrap => Ok(Attribute::Unwrap(val.try_into()?)),
+            AttributeType::Verify => Ok(Attribute::Verify(val.try_into()?)),
+            AttributeType::VerifyRecover => Ok(Attribute::VerifyRecover(val.try_into()?)),
+            AttributeType::Wrap => Ok(Attribute::Wrap(val.try_into()?)),
             // CK_ULONG
-            AttributeType::ModulusBits => Ok(Attribute::ModulusBits(Box::pin(
-                CK_ULONG::from_ne_bytes(val[0..7].try_into()?),
-            ))),
-            AttributeType::ValueLen => Ok(Attribute::ValueLen(Box::pin(CK_ULONG::from_ne_bytes(
-                val[0..7].try_into()?,
-            )))),
+            AttributeType::ModulusBits => Ok(Attribute::ModulusBits(
+                CK_ULONG::from_ne_bytes(val.try_into()?).try_into()?,
+            )),
+            AttributeType::ValueLen => Ok(Attribute::ValueLen(
+                CK_ULONG::from_ne_bytes(val.try_into()?).try_into()?,
+            )),
             // Vec<u8>
-            AttributeType::Base => Ok(Attribute::Base(Pin::new(val.to_vec()))),
-            AttributeType::Label => Ok(Attribute::Label(Pin::new(val.to_vec()))),
-            AttributeType::Prime => Ok(Attribute::Prime(Pin::new(val.to_vec()))),
-            AttributeType::PublicExponent => Ok(Attribute::PublicExponent(Pin::new(val.to_vec()))),
-            AttributeType::Modulus => Ok(Attribute::Modulus(Pin::new(val.to_vec()))),
-            AttributeType::Value => Ok(Attribute::Value(Pin::new(val.to_vec()))),
-            AttributeType::Id => Ok(Attribute::Id(Pin::new(val.to_vec()))),
+            AttributeType::Base => Ok(Attribute::Base(val.to_vec())),
+            AttributeType::Label => Ok(Attribute::Label(val.to_vec())),
+            AttributeType::Prime => Ok(Attribute::Prime(val.to_vec())),
+            AttributeType::PublicExponent => Ok(Attribute::PublicExponent(val.to_vec())),
+            AttributeType::Modulus => Ok(Attribute::Modulus(val.to_vec())),
+            AttributeType::Value => Ok(Attribute::Value(val.to_vec())),
+            AttributeType::Id => Ok(Attribute::Id(val.to_vec())),
             // Unique types
-            AttributeType::Class => Ok(Attribute::Class(Box::pin(CK_OBJECT_CLASS::from_ne_bytes(
-                val[0..7].try_into()?,
-            )))),
-            AttributeType::KeyType => Ok(Attribute::KeyType(Box::pin(CK_KEY_TYPE::from_ne_bytes(
-                val[0..7].try_into()?,
-            )))),
+            AttributeType::Class => Ok(Attribute::Class(
+                CK_OBJECT_CLASS::from_ne_bytes(val.try_into()?).try_into()?,
+            )),
+            AttributeType::KeyType => Ok(Attribute::KeyType(
+                CK_KEY_TYPE::from_ne_bytes(val.try_into()?).try_into()?,
+            )),
             AttributeType::AllowedMechanisms => {
                 let val = unsafe {
                     std::slice::from_raw_parts(
@@ -362,7 +330,12 @@ impl TryFrom<CK_ATTRIBUTE> for Attribute {
                         attribute.ulValueLen.try_into()?,
                     )
                 };
-                Ok(Attribute::AllowedMechanisms(Pin::new(val.to_vec())))
+                let types: Vec<MechanismType> = val
+                    .to_vec()
+                    .into_iter()
+                    .map(|t| t.try_into())
+                    .collect::<Result<Vec<MechanismType>>>()?;
+                Ok(Attribute::AllowedMechanisms(types))
             }
         }
     }
@@ -380,6 +353,84 @@ impl ObjectHandle {
 
     pub(crate) fn handle(&self) -> CK_OBJECT_HANDLE {
         self.handle
+    }
+}
+
+impl ObjectClass {
+    pub const PUBLIC_KEY: ObjectClass = ObjectClass {
+        val: CKO_PUBLIC_KEY,
+    };
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct ObjectClass {
+    val: CK_OBJECT_CLASS,
+}
+
+impl Deref for ObjectClass {
+    type Target = CK_OBJECT_CLASS;
+
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
+}
+
+impl From<ObjectClass> for CK_OBJECT_CLASS {
+    fn from(object_class: ObjectClass) -> Self {
+        *object_class
+    }
+}
+
+impl TryFrom<CK_OBJECT_CLASS> for ObjectClass {
+    type Error = Error;
+
+    fn try_from(object_class: CK_OBJECT_CLASS) -> Result<Self> {
+        match object_class {
+            CKO_PUBLIC_KEY => Ok(ObjectClass::PUBLIC_KEY),
+            other => {
+                error!("Object class {} is not supported.", other);
+                Err(Error::NotSupported)
+            }
+        }
+    }
+}
+
+impl KeyType {
+    pub const RSA: KeyType = KeyType { val: CKK_RSA };
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct KeyType {
+    val: CK_KEY_TYPE,
+}
+
+impl Deref for KeyType {
+    type Target = CK_KEY_TYPE;
+
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
+}
+
+impl From<KeyType> for CK_KEY_TYPE {
+    fn from(key_type: KeyType) -> Self {
+        *key_type
+    }
+}
+
+impl TryFrom<CK_KEY_TYPE> for KeyType {
+    type Error = Error;
+
+    fn try_from(key_type: CK_KEY_TYPE) -> Result<Self> {
+        match key_type {
+            CKK_RSA => Ok(KeyType::RSA),
+            other => {
+                error!("Key type {} is not supported.", other);
+                Err(Error::NotSupported)
+            }
+        }
     }
 }
 

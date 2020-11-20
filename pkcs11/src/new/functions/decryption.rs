@@ -12,11 +12,11 @@ impl Pkcs11 {
     pub fn decrypt(
         &self,
         session: &Session,
-        mechanism: Mechanism,
+        mechanism: &Mechanism,
         key: ObjectHandle,
         encrypted_data: &[u8],
     ) -> Result<Vec<u8>> {
-        let mut mechanism: CK_MECHANISM = mechanism.try_into()?;
+        let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut data_len = 0;
 
         unsafe {

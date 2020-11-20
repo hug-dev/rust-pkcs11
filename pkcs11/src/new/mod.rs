@@ -128,18 +128,24 @@ impl From<std::ffi::NulError> for Error {
     }
 }
 
+impl From<std::convert::Infallible> for Error {
+    fn from(_err: std::convert::Infallible) -> Error {
+        unreachable!()
+    }
+}
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
     use crate::new::types::locking::CInitializeArgs;
     use crate::new::types::mechanism::Mechanism;
-    use crate::new::types::object::{Attribute, AttributeInfo, AttributeType};
+    use crate::new::types::object::{
+        Attribute, AttributeInfo, AttributeType, KeyType, ObjectClass,
+    };
     use crate::new::types::session::UserType;
     use crate::new::types::Flags;
     use crate::new::Pkcs11;
-    use pkcs11_sys::*;
-    use std::pin::Pin;
 
     #[test]
     fn sign_verify() {
@@ -171,18 +177,18 @@ mod tests {
 
         // pub key template
         let pub_key_template = vec![
-            Attribute::Token(Box::pin(CK_TRUE)),
-            Attribute::Private(Box::pin(CK_FALSE)),
-            Attribute::PublicExponent(Pin::new(public_exponent)),
-            Attribute::ModulusBits(Box::pin(modulus_bits)),
+            Attribute::Token(true.into()),
+            Attribute::Private(false.into()),
+            Attribute::PublicExponent(public_exponent),
+            Attribute::ModulusBits(modulus_bits.into()),
         ];
 
         // priv key template
-        let priv_key_template = vec![Attribute::Token(Box::pin(CK_TRUE))];
+        let priv_key_template = vec![Attribute::Token(true.into())];
 
         // generate a key pair
         let (public, private) = pkcs11
-            .generate_key_pair(&session, mechanism, &pub_key_template, &priv_key_template)
+            .generate_key_pair(&session, &mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to sign
@@ -190,12 +196,12 @@ mod tests {
 
         // sign something with it
         let signature = pkcs11
-            .sign(&session, Mechanism::RsaPkcs, private, &data)
+            .sign(&session, &Mechanism::RsaPkcs, private, &data)
             .unwrap();
 
         // verify the signature
         pkcs11
-            .verify(&session, Mechanism::RsaPkcs, public, &data, &signature)
+            .verify(&session, &Mechanism::RsaPkcs, public, &data, &signature)
             .unwrap();
 
         // delete keys
@@ -239,22 +245,22 @@ mod tests {
 
         // pub key template
         let pub_key_template = vec![
-            Attribute::Token(Box::pin(CK_TRUE)),
-            Attribute::Private(Box::pin(CK_FALSE)),
-            Attribute::PublicExponent(Pin::new(public_exponent)),
-            Attribute::ModulusBits(Box::pin(modulus_bits)),
-            Attribute::Encrypt(Box::pin(CK_TRUE)),
+            Attribute::Token(true.into()),
+            Attribute::Private(false.into()),
+            Attribute::PublicExponent(public_exponent),
+            Attribute::ModulusBits(modulus_bits.into()),
+            Attribute::Encrypt(true.into()),
         ];
 
         // priv key template
         let priv_key_template = vec![
-            Attribute::Token(Box::pin(CK_TRUE)),
-            Attribute::Decrypt(Box::pin(CK_TRUE)),
+            Attribute::Token(true.into()),
+            Attribute::Decrypt(true.into()),
         ];
 
         // generate a key pair
         let (public, private) = pkcs11
-            .generate_key_pair(&session, mechanism, &pub_key_template, &priv_key_template)
+            .generate_key_pair(&session, &mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to encrypt
@@ -262,12 +268,12 @@ mod tests {
 
         // encrypt something with it
         let encrypted_data = pkcs11
-            .encrypt(&session, Mechanism::RsaPkcs, public, &data)
+            .encrypt(&session, &Mechanism::RsaPkcs, public, &data)
             .unwrap();
 
         // decrypt
         let decrypted_data = pkcs11
-            .decrypt(&session, Mechanism::RsaPkcs, private, &encrypted_data)
+            .decrypt(&session, &Mechanism::RsaPkcs, private, &encrypted_data)
             .unwrap();
 
         // The decrypted buffer is bigger than the original one.
@@ -310,13 +316,13 @@ mod tests {
         let modulus = vec![0xFF; 1024];
 
         let template = vec![
-            Attribute::Token(Box::pin(CK_TRUE)),
-            Attribute::Private(Box::pin(CK_FALSE)),
-            Attribute::PublicExponent(Pin::new(public_exponent)),
-            Attribute::Modulus(Pin::new(modulus.clone())),
-            Attribute::Class(Box::pin(CKO_PUBLIC_KEY)),
-            Attribute::KeyType(Box::pin(CKK_RSA)),
-            Attribute::Verify(Box::pin(CK_TRUE)),
+            Attribute::Token(true.into()),
+            Attribute::Private(false.into()),
+            Attribute::PublicExponent(public_exponent),
+            Attribute::Modulus(modulus.clone()),
+            Attribute::Class(ObjectClass::PUBLIC_KEY),
+            Attribute::KeyType(KeyType::RSA),
+            Attribute::Verify(true.into()),
         ];
 
         {
