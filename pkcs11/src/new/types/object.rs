@@ -356,16 +356,16 @@ impl ObjectHandle {
     }
 }
 
-impl ObjectClass {
-    pub const PUBLIC_KEY: ObjectClass = ObjectClass {
-        val: CKO_PUBLIC_KEY,
-    };
-}
-
 #[derive(Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct ObjectClass {
     val: CK_OBJECT_CLASS,
+}
+
+impl ObjectClass {
+    pub const PUBLIC_KEY: ObjectClass = ObjectClass {
+        val: CKO_PUBLIC_KEY,
+    };
 }
 
 impl Deref for ObjectClass {
@@ -396,14 +396,14 @@ impl TryFrom<CK_OBJECT_CLASS> for ObjectClass {
     }
 }
 
-impl KeyType {
-    pub const RSA: KeyType = KeyType { val: CKK_RSA };
-}
-
 #[derive(Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct KeyType {
     val: CK_KEY_TYPE,
+}
+
+impl KeyType {
+    pub const RSA: KeyType = KeyType { val: CKK_RSA };
 }
 
 impl Deref for KeyType {
