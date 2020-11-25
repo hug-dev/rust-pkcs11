@@ -216,7 +216,7 @@ mod tests {
         pkcs11.logout(&session).unwrap();
 
         // close session
-        pkcs11.close_session(session).unwrap();
+        pkcs11.close_session(session);
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
         pkcs11.logout(&session).unwrap();
 
         // close session
-        pkcs11.close_session(session).unwrap();
+        pkcs11.close_session(session);
     }
 
     #[test]
@@ -367,6 +367,6 @@ mod tests {
         pkcs11.logout(&session).unwrap();
 
         // close session
-        pkcs11.close_session(session).unwrap();
+        pkcs11.close_session(session);
     }
 }
