@@ -24,10 +24,12 @@ impl Pkcs11 {
             .into_result()?;
         }
 
-        Ok(Session::new(session_handle))
+        Ok(Session::new(session_handle, &self))
     }
 
-    pub fn close_session(&self, session: Session) -> Result<()> {
+    pub fn close_session(&self, _session: Session) {}
+
+    pub(crate) fn close_session_private(&self, session: &Session) -> Result<()> {
         unsafe { Rv::from(get_pkcs11!(self, C_CloseSession)(session.handle())).into_result() }
     }
 
