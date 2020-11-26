@@ -15,11 +15,15 @@ impl<'a> Session<'a> {
     pub(crate) fn handle(&self) -> CK_SESSION_HANDLE {
         self.handle
     }
+
+    pub(crate) fn client(&self) -> &Pkcs11 {
+        self.client
+    }
 }
 
 impl Drop for Session<'_> {
     fn drop(&mut self) {
-        if let Err(e) = self.client.close_session_private(self) {
+        if let Err(e) = self.close_private() {
             error!("Failed to close session: {}", e);
         }
     }

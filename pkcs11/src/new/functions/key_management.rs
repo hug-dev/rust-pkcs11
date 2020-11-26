@@ -3,15 +3,13 @@ use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::{Attribute, ObjectHandle};
 use crate::new::types::session::Session;
-use crate::new::Pkcs11;
 use crate::new::{Error, Result};
 use pkcs11_sys::{CK_ATTRIBUTE, CK_MECHANISM, CK_MECHANISM_PTR};
 use std::convert::TryInto;
 
-impl Pkcs11 {
+impl<'a> Session<'a> {
     pub fn generate_key_pair(
         &self,
-        session: &Session,
         mechanism: &Mechanism,
         pub_key_template: &[Attribute],
         priv_key_template: &[Attribute],
@@ -24,8 +22,8 @@ impl Pkcs11 {
         let mut pub_handle = 0;
         let mut priv_handle = 0;
         unsafe {
-            Rv::from(get_pkcs11!(self, C_GenerateKeyPair)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_GenerateKeyPair)(
+                self.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 pub_key_template.as_mut_ptr(),
                 pub_key_template.len().try_into()?,
@@ -45,7 +43,6 @@ impl Pkcs11 {
 
     pub fn generate_key(
         &self,
-        session: Session,
         mechanism: &Mechanism,
         key_template: &[Attribute],
     ) -> Result<ObjectHandle> {
@@ -54,8 +51,8 @@ impl Pkcs11 {
             key_template.iter().map(|attr| attr.into()).collect();
         let mut handle = 0;
         unsafe {
-            Rv::from(get_pkcs11!(self, C_GenerateKey)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_GenerateKey)(
+                self.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key_template.as_mut_ptr(),
                 key_template.len().try_into()?,
@@ -69,7 +66,6 @@ impl Pkcs11 {
 
     pub fn wrap_key(
         &self,
-        _session: Session,
         _mechanism: &Mechanism,
         _wrapping_key: ObjectHandle,
         _wrapped_key: ObjectHandle,
@@ -79,7 +75,6 @@ impl Pkcs11 {
 
     pub fn unwrap_key(
         &self,
-        _session: Session,
         _mechanism: &Mechanism,
         _unwrapping_key: ObjectHandle,
         _wrapped_key: &[u8],
@@ -90,7 +85,6 @@ impl Pkcs11 {
 
     pub fn derive_key(
         &self,
-        _session: Session,
         _mechanism: &Mechanism,
         _base_key: ObjectHandle,
         _derived_key_template: &[Attribute],

@@ -19,10 +19,11 @@ impl Pkcs11 {
         }
     }
 
-    /// # Safety
-    ///
-    /// TODO
-    pub unsafe fn finalize(&self) -> Result<()> {
-        Rv::from(get_pkcs11!(self, C_Finalize)(ptr::null_mut())).into_result()
+    pub(crate) fn finalize_private(&self) -> Result<()> {
+        // Safe because Session contain a reference to self so that this function can not be called
+        // while there are live Session instances.
+        unsafe { Rv::from(get_pkcs11!(self, C_Finalize)(ptr::null_mut())).into_result() }
     }
+
+    pub fn finalize(self) {}
 }

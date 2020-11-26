@@ -3,15 +3,13 @@ use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::ObjectHandle;
 use crate::new::types::session::Session;
-use crate::new::Pkcs11;
 use crate::new::Result;
 use pkcs11_sys::*;
 use std::convert::TryInto;
 
-impl Pkcs11 {
+impl<'a> Session<'a> {
     pub fn encrypt(
         &self,
-        session: &Session,
         mechanism: &Mechanism,
         key: ObjectHandle,
         data: &[u8],
@@ -20,8 +18,8 @@ impl Pkcs11 {
         let mut encrypted_data_len = 0;
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_EncryptInit)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_EncryptInit)(
+                self.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key.handle(),
             ))
@@ -30,8 +28,8 @@ impl Pkcs11 {
 
         // Get the output buffer length
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Encrypt)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Encrypt)(
+                self.handle(),
                 data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 std::ptr::null_mut(),
@@ -43,8 +41,8 @@ impl Pkcs11 {
         let mut encrypted_data = vec![0; encrypted_data_len.try_into()?];
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Encrypt)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Encrypt)(
+                self.handle(),
                 data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 encrypted_data.as_mut_ptr(),
