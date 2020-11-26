@@ -5,11 +5,21 @@ use pkcs11_sys::*;
 pub struct Session<'a> {
     handle: CK_SESSION_HANDLE,
     client: &'a Pkcs11,
+    // This is not used but to prevent Session to automatically implement Send and Sync
+    _guard: *mut u32,
 }
+
+// Session does not implement Sync to prevent the same Session instance to be used from multiple
+// threads.
+unsafe impl<'a> Send for Session<'a> {}
 
 impl<'a> Session<'a> {
     pub(crate) fn new(handle: CK_SESSION_HANDLE, client: &'a Pkcs11) -> Self {
-        Session { handle, client }
+        Session {
+            handle,
+            client,
+            _guard: 0 as *mut u32,
+        }
     }
 
     pub(crate) fn handle(&self) -> CK_SESSION_HANDLE {
