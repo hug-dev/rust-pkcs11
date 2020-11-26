@@ -3,6 +3,7 @@ pub mod objects;
 pub mod types;
 
 use crate::new::types::function::Rv;
+use log::error;
 use std::fmt;
 use std::mem;
 use std::path::Path;
@@ -138,6 +139,14 @@ impl From<std::convert::Infallible> for Error {
     }
 }
 
+impl Drop for Pkcs11 {
+    fn drop(&mut self) {
+        if let Err(e) = self.finalize_private() {
+            error!("Failed to finalize: {}", e);
+        }
+    }
+}
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[cfg(test)]
@@ -171,7 +180,7 @@ mod tests {
         let pin = String::from("123456");
 
         // log in the session
-        pkcs11.login(&session, UserType::User, &pin).unwrap();
+        session.login(UserType::User, &pin).unwrap();
 
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
@@ -191,32 +200,27 @@ mod tests {
         let priv_key_template = vec![Attribute::Token(true.into())];
 
         // generate a key pair
-        let (public, private) = pkcs11
-            .generate_key_pair(&session, &mechanism, &pub_key_template, &priv_key_template)
+        let (public, private) = session
+            .generate_key_pair(&mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to sign
         let data = [0xFF, 0x55, 0xDD];
 
         // sign something with it
-        let signature = pkcs11
-            .sign(&session, &Mechanism::RsaPkcs, private, &data)
-            .unwrap();
+        let signature = session.sign(&Mechanism::RsaPkcs, private, &data).unwrap();
 
         // verify the signature
-        pkcs11
-            .verify(&session, &Mechanism::RsaPkcs, public, &data, &signature)
+        session
+            .verify(&Mechanism::RsaPkcs, public, &data, &signature)
             .unwrap();
 
         // delete keys
-        pkcs11.destroy_object(&session, public).unwrap();
-        pkcs11.destroy_object(&session, private).unwrap();
+        session.destroy_object(public).unwrap();
+        session.destroy_object(private).unwrap();
 
         // log out
-        pkcs11.logout(&session).unwrap();
-
-        // close session
-        pkcs11.close_session(session);
+        session.logout().unwrap();
     }
 
     #[test]
@@ -239,7 +243,7 @@ mod tests {
         let pin = String::from("123456");
 
         // log in the session
-        pkcs11.login(&session, UserType::User, &pin).unwrap();
+        session.login(UserType::User, &pin).unwrap();
 
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
@@ -263,35 +267,30 @@ mod tests {
         ];
 
         // generate a key pair
-        let (public, private) = pkcs11
-            .generate_key_pair(&session, &mechanism, &pub_key_template, &priv_key_template)
+        let (public, private) = session
+            .generate_key_pair(&mechanism, &pub_key_template, &priv_key_template)
             .unwrap();
 
         // data to encrypt
         let data = vec![0xFF, 0x55, 0xDD];
 
         // encrypt something with it
-        let encrypted_data = pkcs11
-            .encrypt(&session, &Mechanism::RsaPkcs, public, &data)
-            .unwrap();
+        let encrypted_data = session.encrypt(&Mechanism::RsaPkcs, public, &data).unwrap();
 
         // decrypt
-        let decrypted_data = pkcs11
-            .decrypt(&session, &Mechanism::RsaPkcs, private, &encrypted_data)
+        let decrypted_data = session
+            .decrypt(&Mechanism::RsaPkcs, private, &encrypted_data)
             .unwrap();
 
         // The decrypted buffer is bigger than the original one.
         assert_eq!(data, decrypted_data);
 
         // delete keys
-        pkcs11.destroy_object(&session, public).unwrap();
-        pkcs11.destroy_object(&session, private).unwrap();
+        session.destroy_object(public).unwrap();
+        session.destroy_object(private).unwrap();
 
         // log out
-        pkcs11.logout(&session).unwrap();
-
-        // close session
-        pkcs11.close_session(session);
+        session.logout().unwrap();
     }
 
     #[test]
@@ -314,7 +313,7 @@ mod tests {
         let pin = String::from("123456");
 
         // log in the session
-        pkcs11.login(&session, UserType::User, &pin).unwrap();
+        session.login(UserType::User, &pin).unwrap();
 
         let public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
         let modulus = vec![0xFF; 1024];
@@ -331,13 +330,13 @@ mod tests {
 
         {
             // Intentionally forget the object handle to find it later
-            let _public_key = pkcs11.create_object(&session, &template).unwrap();
+            let _public_key = session.create_object(&template).unwrap();
         }
 
-        let is_it_the_public_key = pkcs11.find_objects(&session, &template).unwrap().remove(0);
+        let is_it_the_public_key = session.find_objects(&template).unwrap().remove(0);
 
-        let attribute_info = pkcs11
-            .get_attribute_info(&session, is_it_the_public_key, &[AttributeType::Modulus])
+        let attribute_info = session
+            .get_attribute_info(is_it_the_public_key, &[AttributeType::Modulus])
             .unwrap()
             .remove(0);
 
@@ -347,8 +346,8 @@ mod tests {
             panic!("The Modulus attribute was expected to be present.")
         };
 
-        let attr = pkcs11
-            .get_attributes(&session, is_it_the_public_key, &[AttributeType::Modulus])
+        let attr = session
+            .get_attributes(is_it_the_public_key, &[AttributeType::Modulus])
             .unwrap()
             .remove(0);
 
@@ -359,14 +358,9 @@ mod tests {
         }
 
         // delete key
-        pkcs11
-            .destroy_object(&session, is_it_the_public_key)
-            .unwrap();
+        session.destroy_object(is_it_the_public_key).unwrap();
 
         // log out
-        pkcs11.logout(&session).unwrap();
-
-        // close session
-        pkcs11.close_session(session);
+        session.logout().unwrap();
     }
 }

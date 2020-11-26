@@ -3,25 +3,18 @@ use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::ObjectHandle;
 use crate::new::types::session::Session;
-use crate::new::Pkcs11;
 use crate::new::Result;
 use pkcs11_sys::*;
 use std::convert::TryInto;
 
-impl Pkcs11 {
-    pub fn sign(
-        &self,
-        session: &Session,
-        mechanism: &Mechanism,
-        key: ObjectHandle,
-        data: &[u8],
-    ) -> Result<Vec<u8>> {
+impl<'a> Session<'a> {
+    pub fn sign(&self, mechanism: &Mechanism, key: ObjectHandle, data: &[u8]) -> Result<Vec<u8>> {
         let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut signature_len = 0;
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_SignInit)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_SignInit)(
+                self.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key.handle(),
             ))
@@ -30,8 +23,8 @@ impl Pkcs11 {
 
         // Get the output buffer length
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Sign)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Sign)(
+                self.handle(),
                 data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 std::ptr::null_mut(),
@@ -44,8 +37,8 @@ impl Pkcs11 {
 
         //TODO: we should add a new error instead of those unwrap!
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Sign)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Sign)(
+                self.handle(),
                 data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 signature.as_mut_ptr(),
@@ -61,7 +54,6 @@ impl Pkcs11 {
 
     pub fn verify(
         &self,
-        session: &Session,
         mechanism: &Mechanism,
         key: ObjectHandle,
         data: &[u8],
@@ -70,8 +62,8 @@ impl Pkcs11 {
         let mut mechanism: CK_MECHANISM = mechanism.into();
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_VerifyInit)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_VerifyInit)(
+                self.handle(),
                 &mut mechanism as CK_MECHANISM_PTR,
                 key.handle(),
             ))
@@ -79,8 +71,8 @@ impl Pkcs11 {
         }
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Verify)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Verify)(
+                self.handle(),
                 data.as_ptr() as *mut u8,
                 data.len().try_into()?,
                 signature.as_ptr() as *mut u8,

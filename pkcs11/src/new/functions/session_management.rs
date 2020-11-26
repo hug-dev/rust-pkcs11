@@ -26,19 +26,21 @@ impl Pkcs11 {
 
         Ok(Session::new(session_handle, &self))
     }
+}
 
-    pub fn close_session(&self, _session: Session) {}
+impl<'a> Session<'a> {
+    pub fn close(&self) {}
 
-    pub(crate) fn close_session_private(&self, session: &Session) -> Result<()> {
-        unsafe { Rv::from(get_pkcs11!(self, C_CloseSession)(session.handle())).into_result() }
+    pub(crate) fn close_private(&self) -> Result<()> {
+        unsafe { Rv::from(get_pkcs11!(self.client(), C_CloseSession)(self.handle())).into_result() }
     }
 
-    pub fn login(&self, session: &Session, user_type: UserType, pin: &str) -> Result<()> {
+    pub fn login(&self, user_type: UserType, pin: &str) -> Result<()> {
         //TODO: zeroize after
         let mut pin = CString::new(pin)?.into_bytes();
         unsafe {
-            Rv::from(get_pkcs11!(self, C_Login)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_Login)(
+                self.handle(),
                 user_type.into(),
                 pin.as_mut_ptr(),
                 pin.len().try_into()?,
@@ -47,7 +49,7 @@ impl Pkcs11 {
         }
     }
 
-    pub fn logout(&self, session: &Session) -> Result<()> {
-        unsafe { Rv::from(get_pkcs11!(self, C_Logout)(session.handle())).into_result() }
+    pub fn logout(&self) -> Result<()> {
+        unsafe { Rv::from(get_pkcs11!(self.client(), C_Logout)(self.handle())).into_result() }
     }
 }

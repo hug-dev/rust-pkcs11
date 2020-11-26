@@ -2,7 +2,6 @@ use crate::get_pkcs11;
 use crate::new::types::function::{Rv, RvError};
 use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, ObjectHandle};
 use crate::new::types::session::Session;
-use crate::new::Pkcs11;
 use crate::new::Result;
 use pkcs11_sys::*;
 use std::convert::TryInto;
@@ -10,17 +9,13 @@ use std::convert::TryInto;
 // Search 10 elements at a time
 const MAX_OBJECT_COUNT: usize = 10;
 
-impl Pkcs11 {
-    pub fn find_objects(
-        &self,
-        session: &Session,
-        template: &[Attribute],
-    ) -> Result<Vec<ObjectHandle>> {
+impl<'a> Session<'a> {
+    pub fn find_objects(&self, template: &[Attribute]) -> Result<Vec<ObjectHandle>> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_FindObjectsInit)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_FindObjectsInit)(
+                self.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
             ))
@@ -32,8 +27,8 @@ impl Pkcs11 {
         let mut objects = Vec::new();
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_FindObjects)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_FindObjects)(
+                self.handle(),
                 object_handles.as_mut_ptr() as CK_OBJECT_HANDLE_PTR,
                 MAX_OBJECT_COUNT.try_into()?,
                 &mut object_count,
@@ -45,8 +40,8 @@ impl Pkcs11 {
             objects.extend_from_slice(&object_handles[..object_count.try_into()?]);
 
             unsafe {
-                Rv::from(get_pkcs11!(self, C_FindObjects)(
-                    session.handle(),
+                Rv::from(get_pkcs11!(self.client(), C_FindObjects)(
+                    self.handle(),
                     object_handles.as_mut_ptr() as CK_OBJECT_HANDLE_PTR,
                     MAX_OBJECT_COUNT.try_into()?,
                     &mut object_count,
@@ -56,7 +51,10 @@ impl Pkcs11 {
         }
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_FindObjectsFinal)(session.handle())).into_result()?;
+            Rv::from(get_pkcs11!(self.client(), C_FindObjectsFinal)(
+                self.handle(),
+            ))
+            .into_result()?;
         }
 
         let objects = objects.into_iter().map(ObjectHandle::new).collect();
@@ -64,13 +62,13 @@ impl Pkcs11 {
         Ok(objects)
     }
 
-    pub fn create_object(&self, session: &Session, template: &[Attribute]) -> Result<ObjectHandle> {
+    pub fn create_object(&self, template: &[Attribute]) -> Result<ObjectHandle> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
         let mut object_handle = 0;
 
         unsafe {
-            Rv::from(get_pkcs11!(self, C_CreateObject)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_CreateObject)(
+                self.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
                 &mut object_handle as CK_OBJECT_HANDLE_PTR,
@@ -81,10 +79,10 @@ impl Pkcs11 {
         Ok(ObjectHandle::new(object_handle))
     }
 
-    pub fn destroy_object(&self, session: &Session, object: ObjectHandle) -> Result<()> {
+    pub fn destroy_object(&self, object: ObjectHandle) -> Result<()> {
         unsafe {
-            Rv::from(get_pkcs11!(self, C_DestroyObject)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_DestroyObject)(
+                self.handle(),
                 object.handle(),
             ))
             .into_result()
@@ -93,7 +91,6 @@ impl Pkcs11 {
 
     pub fn get_attribute_info(
         &self,
-        session: &Session,
         object: ObjectHandle,
         attributes: &[AttributeType],
     ) -> Result<Vec<AttributeInfo>> {
@@ -107,8 +104,8 @@ impl Pkcs11 {
             .collect();
 
         match unsafe {
-            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_GetAttributeValue)(
+                self.handle(),
                 object.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
@@ -131,11 +128,10 @@ impl Pkcs11 {
     // ones are unavailable.
     pub fn get_attributes(
         &self,
-        session: &Session,
         object: ObjectHandle,
         attributes: &[AttributeType],
     ) -> Result<Vec<Attribute>> {
-        let attrs_info = self.get_attribute_info(session, object, attributes)?;
+        let attrs_info = self.get_attribute_info(object, attributes)?;
 
         // Allocating a chunk of memory where to put the attributes value.
         let attrs_memory: Vec<(AttributeType, Vec<u8>)> = attrs_info
@@ -164,8 +160,8 @@ impl Pkcs11 {
         // This should only return OK as all attributes asked should be
         // available. Concurrency problem?
         unsafe {
-            Rv::from(get_pkcs11!(self, C_GetAttributeValue)(
-                session.handle(),
+            Rv::from(get_pkcs11!(self.client(), C_GetAttributeValue)(
+                self.handle(),
                 object.handle(),
                 template.as_mut_ptr(),
                 template.len().try_into()?,
