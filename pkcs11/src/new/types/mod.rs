@@ -12,7 +12,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ops::Deref;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct Flags {
     flags: CK_FLAGS,
 }

@@ -2,11 +2,19 @@ pub mod functions;
 pub mod objects;
 pub mod types;
 
-use crate::new::types::function::Rv;
+use crate::new::types::function::{Rv, RvError};
+use crate::new::types::session::{Session, UserType};
+use crate::new::types::slot_token::Slot;
 use log::error;
+use pkcs11_sys::*;
+use secrecy::{ExposeSecret, Secret, SecretVec};
+use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
+use std::ffi::CString;
 use std::fmt;
 use std::mem;
 use std::path::Path;
+use std::sync::{Mutex, RwLock};
 
 #[macro_export]
 macro_rules! get_pkcs11 {
@@ -23,6 +31,10 @@ pub struct Pkcs11 {
     // valid.
     _pkcs11_lib: pkcs11_sys::Pkcs11,
     function_list: pkcs11_sys::_CK_FUNCTION_LIST,
+    // Handle of sessions currently logged in per slot. This is used for logging in and out.
+    logged_sessions: Mutex<HashMap<Slot, HashSet<CK_SESSION_HANDLE>>>,
+    // Pin per slot, will be used for login. Ideally this should also be filtered by user type.
+    pins: RwLock<HashMap<Slot, SecretVec<u8>>>,
 }
 
 impl Pkcs11 {
@@ -35,10 +47,6 @@ impl Pkcs11 {
                 pkcs11_sys::Pkcs11::new(filename.as_ref()).map_err(Error::LibraryLoading)?;
             let mut list = mem::MaybeUninit::uninit();
 
-            if pkcs11_lib.can_call().C_GetFunctionList().is_err() {
-                return Err(Error::LibraryLoading(libloading::Error::DlOpenUnknown));
-            }
-
             Rv::from(pkcs11_lib.C_GetFunctionList(list.as_mut_ptr())).into_result()?;
 
             let list_ptr = *list.as_ptr();
@@ -46,8 +54,88 @@ impl Pkcs11 {
             Ok(Pkcs11 {
                 _pkcs11_lib: pkcs11_lib,
                 function_list: *list_ptr,
+                logged_sessions: Mutex::new(HashMap::new()),
+                pins: RwLock::new(HashMap::new()),
             })
         }
+    }
+
+    // The pin set is the one that is going to be use with all user type specified when logging in.
+    // It needs to be changed before calling login with a different user type.
+    pub fn set_pin(&self, slot: Slot, pin: &str) -> Result<()> {
+        let _ = self
+            .pins
+            .write()
+            .expect("Pins lock poisoned")
+            .insert(slot, Secret::new(CString::new(pin)?.into_bytes()));
+        Ok(())
+    }
+
+    // Ignore if the pin was not set previously on the slot
+    pub fn clear_pin(&self, slot: Slot) {
+        // The removed pin will be zeroized on drop as it is a SecretVec
+        let _ = self.pins.write().expect("Pins lock poisoned").remove(&slot);
+    }
+
+    // Do not fail if the user is already logged in. It happens if another session on the same slot
+    // has already called the log in operation. Record the login call and only log out when there
+    // aren't anymore sessions requiring log in state.
+    fn login(&self, session: &Session, user_type: UserType) -> Result<()> {
+        let pins = self.pins.read().expect("Pins lock poisoned");
+        let pin = pins
+            .get(&session.slot())
+            .ok_or(Error::PinNotSet)?
+            .expose_secret();
+
+        let mut logged_sessions = self
+            .logged_sessions
+            .lock()
+            .expect("Logged sessions mutex poisoned!");
+
+        match unsafe {
+            Rv::from(get_pkcs11!(self, C_Login)(
+                session.handle(),
+                user_type.into(),
+                pin.as_ptr() as *mut u8,
+                pin.len().try_into()?,
+            ))
+        } {
+            Rv::Ok | Rv::Error(RvError::UserAlreadyLoggedIn) => {
+                if let Some(session_handles) = logged_sessions.get_mut(&session.slot()) {
+                    // It might already been present in if this session already tried to log in.
+                    let _ = session_handles.insert(session.handle());
+                } else {
+                    let mut new_set = HashSet::new();
+                    let _ = new_set.insert(session.handle());
+                    let _ = logged_sessions.insert(session.slot(), new_set);
+                }
+                Ok(())
+            }
+            Rv::Error(err) => Err(err.into()),
+        }
+    }
+
+    fn logout(&self, session: &Session) -> Result<()> {
+        let mut logged_sessions = self
+            .logged_sessions
+            .lock()
+            .expect("Logged sessions mutex poisoned!");
+
+        // A non-logged in session might call this method.
+
+        if let Some(session_handles) = logged_sessions.get_mut(&session.slot()) {
+            if session_handles.contains(&session.handle()) {
+                if session_handles.len() == 1 {
+                    // Only this session is logged in, we can logout.
+                    unsafe {
+                        Rv::from(get_pkcs11!(self, C_Logout)(session.handle())).into_result()?;
+                    }
+                }
+                let _ = session_handles.remove(&session.handle());
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -75,6 +163,8 @@ pub enum Error {
     NullFunctionPointer,
 
     InvalidValue,
+
+    PinNotSet,
 }
 
 impl fmt::Display for Error {
@@ -89,6 +179,7 @@ impl fmt::Display for Error {
             Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
             Error::NullFunctionPointer => write!(f, "Calling a NULL function pointer"),
             Error::InvalidValue => write!(f, "The value is not one of the expected options"),
+            Error::PinNotSet => write!(f, "Pin has not been set before trying to log in"),
         }
     }
 }
@@ -104,6 +195,7 @@ impl std::error::Error for Error {
             | Error::Pkcs11(_)
             | Error::NotSupported
             | Error::NullFunctionPointer
+            | Error::PinNotSet
             | Error::InvalidValue => None,
         }
     }
@@ -159,6 +251,8 @@ mod tests {
     use crate::new::types::session::UserType;
     use crate::new::types::Flags;
     use crate::new::Pkcs11;
+    use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn sign_verify() {
@@ -175,12 +269,12 @@ mod tests {
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
-        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
+        let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
 
-        let pin = String::from("123456");
+        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
-        session.login(UserType::User, &pin).unwrap();
+        session.login(UserType::User).unwrap();
 
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
@@ -218,9 +312,6 @@ mod tests {
         // delete keys
         session.destroy_object(public).unwrap();
         session.destroy_object(private).unwrap();
-
-        // log out
-        session.logout().unwrap();
     }
 
     #[test]
@@ -238,12 +329,12 @@ mod tests {
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
-        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
+        let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
 
-        let pin = String::from("123456");
+        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
-        session.login(UserType::User, &pin).unwrap();
+        session.login(UserType::User).unwrap();
 
         // get mechanism
         let mechanism = Mechanism::RsaPkcsKeyPairGen;
@@ -288,9 +379,6 @@ mod tests {
         // delete keys
         session.destroy_object(public).unwrap();
         session.destroy_object(private).unwrap();
-
-        // log out
-        session.logout().unwrap();
     }
 
     #[test]
@@ -308,12 +396,12 @@ mod tests {
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
-        let session = pkcs11.open_session_no_callback(&slot, flags).unwrap();
+        let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
 
-        let pin = String::from("123456");
+        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
-        session.login(UserType::User, &pin).unwrap();
+        session.login(UserType::User).unwrap();
 
         let public_exponent: Vec<u8> = vec![0x01, 0x00, 0x01];
         let modulus = vec![0xFF; 1024];
@@ -359,8 +447,43 @@ mod tests {
 
         // delete key
         session.destroy_object(is_it_the_public_key).unwrap();
+    }
 
-        // log out
-        session.logout().unwrap();
+    #[test]
+    fn login_feast() {
+        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
+        const SESSIONS: usize = 100;
+
+        // initialize the library
+        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
+
+        // find a slot, get the first one
+        let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+
+        // set flags
+        let mut flags = Flags::new();
+        flags.set_rw_session(true).set_serial_session(true);
+
+        pkcs11.set_pin(slot, "123456").unwrap();
+
+        let pkcs11 = Arc::from(pkcs11);
+        let mut threads = Vec::new();
+
+        for _ in 0..SESSIONS {
+            let pkcs11 = pkcs11.clone();
+            threads.push(thread::spawn(move || {
+                let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
+                session.login(UserType::User).unwrap();
+                session.login(UserType::User).unwrap();
+                session.login(UserType::User).unwrap();
+                session.logout().unwrap();
+                session.logout().unwrap();
+                session.logout().unwrap();
+            }));
+        }
+
+        for thread in threads {
+            thread.join().unwrap();
+        }
     }
 }

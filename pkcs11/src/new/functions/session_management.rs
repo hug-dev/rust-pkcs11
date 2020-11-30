@@ -5,11 +5,9 @@ use crate::new::types::slot_token::Slot;
 use crate::new::types::Flags;
 use crate::new::Pkcs11;
 use crate::new::Result;
-use std::convert::TryInto;
-use std::ffi::CString;
 
 impl Pkcs11 {
-    pub fn open_session_no_callback(&self, slot_id: &Slot, flags: Flags) -> Result<Session> {
+    pub fn open_session_no_callback(&self, slot_id: Slot, flags: Flags) -> Result<Session> {
         let mut session_handle = 0;
 
         unsafe {
@@ -24,7 +22,7 @@ impl Pkcs11 {
             .into_result()?;
         }
 
-        Ok(Session::new(session_handle, &self))
+        Ok(Session::new(session_handle, &self, slot_id))
     }
 }
 
@@ -35,21 +33,14 @@ impl<'a> Session<'a> {
         unsafe { Rv::from(get_pkcs11!(self.client(), C_CloseSession)(self.handle())).into_result() }
     }
 
-    pub fn login(&self, user_type: UserType, pin: &str) -> Result<()> {
-        //TODO: zeroize after
-        let mut pin = CString::new(pin)?.into_bytes();
-        unsafe {
-            Rv::from(get_pkcs11!(self.client(), C_Login)(
-                self.handle(),
-                user_type.into(),
-                pin.as_mut_ptr(),
-                pin.len().try_into()?,
-            ))
-            .into_result()
-        }
+    // Do not fail if the user is already logged in. It happens if another session on the same slot
+    // has already called the log in operation. Record the login call and only log out when there
+    // aren't anymore sessions requiring log in state.
+    pub fn login(&self, user_type: UserType) -> Result<()> {
+        self.client().login(self, user_type)
     }
 
     pub fn logout(&self) -> Result<()> {
-        unsafe { Rv::from(get_pkcs11!(self.client(), C_Logout)(self.handle())).into_result() }
+        self.client().logout(self)
     }
 }

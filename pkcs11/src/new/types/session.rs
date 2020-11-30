@@ -1,3 +1,4 @@
+use crate::new::types::slot_token::Slot;
 use crate::new::Pkcs11;
 use log::error;
 use pkcs11_sys::*;
@@ -5,6 +6,8 @@ use pkcs11_sys::*;
 pub struct Session<'a> {
     handle: CK_SESSION_HANDLE,
     client: &'a Pkcs11,
+    // Slot to know the token this session was opened on
+    slot: Slot,
     // This is not used but to prevent Session to automatically implement Send and Sync
     _guard: *mut u32,
 }
@@ -14,11 +17,12 @@ pub struct Session<'a> {
 unsafe impl<'a> Send for Session<'a> {}
 
 impl<'a> Session<'a> {
-    pub(crate) fn new(handle: CK_SESSION_HANDLE, client: &'a Pkcs11) -> Self {
+    pub(crate) fn new(handle: CK_SESSION_HANDLE, client: &'a Pkcs11, slot: Slot) -> Self {
         Session {
             handle,
             client,
-            _guard: 0 as *mut u32,
+            slot,
+            _guard: std::ptr::null_mut::<u32>(),
         }
     }
 
@@ -29,10 +33,19 @@ impl<'a> Session<'a> {
     pub(crate) fn client(&self) -> &Pkcs11 {
         self.client
     }
+
+    pub(crate) fn slot(&self) -> Slot {
+        self.slot
+    }
 }
 
 impl Drop for Session<'_> {
     fn drop(&mut self) {
+        // logout is ignored if the session is not logged in
+        if let Err(e) = self.logout() {
+            error!("Failed to logout session: {}", e);
+        }
+
         if let Err(e) = self.close_private() {
             error!("Failed to close session: {}", e);
         }
