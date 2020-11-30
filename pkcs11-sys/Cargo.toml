@@ -19,9 +19,7 @@ include = [
 ]
 
 [build-dependencies]
-# NOTE: requires dynamic loading features for bindgen. This is not currently
-#       merged into `master`.
-bindgen = { git = "https://github.com/joechrisellis/rust-bindgen" }
+bindgen = "0.56.0"
 
 [dependencies]
 libloading = "0.6.3"

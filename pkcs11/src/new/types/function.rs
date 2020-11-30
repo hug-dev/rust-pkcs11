@@ -120,7 +120,7 @@ impl From<CK_RV> for Rv {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RvError {
     Cancel,
     HostMemory,
