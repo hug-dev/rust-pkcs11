@@ -8,7 +8,7 @@ use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 // transparent so that a vector of MechanismType should have the same layout than a vector of
 // CK_MECHANISM_TYPE.
 #[repr(transparent)]
@@ -71,6 +71,7 @@ impl TryFrom<CK_MECHANISM_TYPE> for MechanismType {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Mechanism {
     // RSA
     RsaPkcsKeyPairGen,
@@ -130,6 +131,49 @@ impl From<&Mechanism> for CK_MECHANISM {
                 pParameter: null_mut(),
                 ulParameterLen: 0,
             },
+        }
+    }
+}
+
+#[cfg(feature = "psa-crypto-conversions")]
+#[allow(deprecated)]
+impl TryFrom<psa_crypto::types::algorithm::Algorithm> for Mechanism {
+    type Error = Error;
+
+    fn try_from(alg: psa_crypto::types::algorithm::Algorithm) -> Result<Self, Self::Error> {
+        use psa_crypto::types::algorithm::{
+            Algorithm, AsymmetricEncryption, AsymmetricSignature, Hash, SignHash,
+        };
+
+        match alg {
+            Algorithm::Hash(Hash::Sha1) => Ok(Mechanism::Sha1),
+            Algorithm::Hash(Hash::Sha256) => Ok(Mechanism::Sha256),
+            Algorithm::Hash(Hash::Sha384) => Ok(Mechanism::Sha384),
+            Algorithm::Hash(Hash::Sha512) => Ok(Mechanism::Sha512),
+            Algorithm::AsymmetricSignature(AsymmetricSignature::RsaPkcs1v15Sign { .. })
+            | Algorithm::AsymmetricEncryption(AsymmetricEncryption::RsaPkcs1v15Crypt { .. }) => {
+                Ok(Mechanism::RsaPkcs)
+            }
+            Algorithm::AsymmetricSignature(AsymmetricSignature::RsaPss {
+                hash_alg: SignHash::Specific(hash_alg),
+            }) => Ok(Mechanism::RsaPkcsPss(rsa::PkcsPssParams {
+                hash_alg: Mechanism::try_from(Algorithm::from(hash_alg))?.mechanism_type(),
+                mgf: rsa::PkcsMgfType::from_psa_crypto_hash(hash_alg)?,
+                s_len: hash_alg.hash_length().try_into()?,
+            })),
+            Algorithm::AsymmetricEncryption(AsymmetricEncryption::RsaOaep { hash_alg }) => {
+                Ok(Mechanism::RsaPkcsOaep(rsa::PkcsOaepParams {
+                    hash_alg: Mechanism::try_from(Algorithm::from(hash_alg))?.mechanism_type(),
+                    mgf: rsa::PkcsMgfType::from_psa_crypto_hash(hash_alg)?,
+                    source: rsa::PkcsOaepSourceType::DATA_SPECIFIED,
+                    source_data: std::ptr::null(),
+                    source_data_len: 0.into(),
+                }))
+            }
+            alg => {
+                error!("{:?} is not a supported algorithm", alg);
+                Err(Error::NotSupported)
+            }
         }
     }
 }
