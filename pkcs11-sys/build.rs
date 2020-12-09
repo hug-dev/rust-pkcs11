@@ -1,8 +1,24 @@
-use std::env;
-use std::path::PathBuf;
-
 fn main() {
-    // Generate bindings.
+    #[cfg(feature = "generate-bindings")]
+    {
+        generate_bindings();
+    }
+
+    #[cfg(not(feature = "generate-bindings"))]
+    {
+        let supported_platforms = vec![String::from("x86_64-unknown-linux-gnu")];
+        let target = std::env::var("TARGET").unwrap();
+
+        // check if target is in the list of supported ones or panic with nice message
+        if !supported_platforms.contains(&target) {
+            panic!(format!("Compilation target ({}) is not part of the supported targets ({:?}). Please compile with the \"generate-bindings\" feature or add support for your platform :)", target, supported_platforms));
+        }
+    }
+}
+
+// Only on a specific feature
+#[cfg(feature = "generate-bindings")]
+fn generate_bindings() {
     let bindings = bindgen::Builder::default()
         .header("pkcs11.h")
         .dynamic_library_name("Pkcs11")
@@ -22,7 +38,7 @@ fn main() {
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/pkcs11_bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("pkcs11_bindings.rs"))
         .expect("Couldn't write bindings!");

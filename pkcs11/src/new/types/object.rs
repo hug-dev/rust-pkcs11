@@ -113,7 +113,7 @@ impl TryFrom<CK_ATTRIBUTE_TYPE> for AttributeType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Attribute {
     AllowedMechanisms(Vec<MechanismType>),
     Base(Vec<u8>),
@@ -356,7 +356,7 @@ impl ObjectHandle {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct ObjectClass {
     val: CK_OBJECT_CLASS,
@@ -365,6 +365,9 @@ pub struct ObjectClass {
 impl ObjectClass {
     pub const PUBLIC_KEY: ObjectClass = ObjectClass {
         val: CKO_PUBLIC_KEY,
+    };
+    pub const PRIVATE_KEY: ObjectClass = ObjectClass {
+        val: CKO_PRIVATE_KEY,
     };
 }
 
@@ -396,7 +399,7 @@ impl TryFrom<CK_OBJECT_CLASS> for ObjectClass {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct KeyType {
     val: CK_KEY_TYPE,

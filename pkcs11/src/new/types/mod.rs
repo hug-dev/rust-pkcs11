@@ -293,7 +293,7 @@ impl From<Flags> for pkcs11_sys::CK_FLAGS {
 }
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Bbool {
     False = 0,
     True = 1,
@@ -338,7 +338,7 @@ impl TryFrom<CK_BBOOL> for Bbool {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Ulong {
     val: CK_ULONG,
@@ -361,5 +361,15 @@ impl From<Ulong> for CK_ULONG {
 impl From<CK_ULONG> for Ulong {
     fn from(ulong: CK_ULONG) -> Self {
         Ulong { val: ulong }
+    }
+}
+
+impl TryFrom<usize> for Ulong {
+    type Error = Error;
+
+    fn try_from(ulong: usize) -> Result<Self> {
+        Ok(Ulong {
+            val: ulong.try_into()?,
+        })
     }
 }

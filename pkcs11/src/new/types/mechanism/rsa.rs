@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::ffi::c_void;
 use std::ops::Deref;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PkcsMgfType {
     val: CK_RSA_PKCS_MGF_TYPE,
@@ -64,7 +64,7 @@ impl TryFrom<CK_RSA_PKCS_MGF_TYPE> for PkcsMgfType {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PkcsOaepSourceType {
     val: CK_RSA_PKCS_OAEP_SOURCE_TYPE,
@@ -105,6 +105,7 @@ impl TryFrom<CK_RSA_PKCS_OAEP_SOURCE_TYPE> for PkcsOaepSourceType {
 }
 
 /// Abstraction over CK_RSA_PKCS_PSS_PARAMS, share the same memory representation.
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct PkcsPssParams {
     pub hash_alg: MechanismType,
@@ -119,17 +120,38 @@ impl From<PkcsPssParams> for Mechanism {
 }
 
 /// Abstraction over CK_RSA_PKCS_OAEP_PARAMS, share the same memory representation.
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct PkcsOaepParams {
     pub hash_alg: MechanismType,
     pub mgf: PkcsMgfType,
     pub source: PkcsOaepSourceType,
-    pub source_data: c_void,
+    pub source_data: *const c_void,
     pub source_data_len: Ulong,
 }
 
 impl From<PkcsOaepParams> for Mechanism {
     fn from(pkcs_oaep_params: PkcsOaepParams) -> Self {
         Mechanism::RsaPkcsOaep(pkcs_oaep_params)
+    }
+}
+
+#[cfg(feature = "psa-crypto-conversions")]
+#[allow(deprecated)]
+impl PkcsMgfType {
+    pub fn from_psa_crypto_hash(alg: psa_crypto::types::algorithm::Hash) -> Result<Self> {
+        use psa_crypto::types::algorithm::Hash;
+
+        match alg {
+            Hash::Sha1 => Ok(PkcsMgfType::MGF1_SHA1),
+            Hash::Sha224 => Ok(PkcsMgfType::MGF1_SHA224),
+            Hash::Sha256 => Ok(PkcsMgfType::MGF1_SHA256),
+            Hash::Sha384 => Ok(PkcsMgfType::MGF1_SHA384),
+            Hash::Sha512 => Ok(PkcsMgfType::MGF1_SHA512),
+            alg => {
+                error!("{:?} is not a supported MGF1 algorithm", alg);
+                Err(Error::NotSupported)
+            }
+        }
     }
 }

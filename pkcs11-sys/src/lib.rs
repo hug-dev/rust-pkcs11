@@ -5,7 +5,19 @@
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::string_lit_as_bytes)]
 
-// Pull in the generated bindings.
+// For supported targets: use the generated and committed bindings.
+#[cfg(all(
+    not(feature = "generate-bindings"),
+    target_arch = "x86_64",
+    target_os = "linux"
+))]
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/bindings/x86_64-unknown-linux-gnu.rs"
+));
+
+// If the "generate-bindings" feature is on, use the generated bindings.
+#[cfg(feature = "generate-bindings")]
 include!(concat!(env!("OUT_DIR"), "/pkcs11_bindings.rs"));
 
 /// Typedefs and defines for the CKM_X9_42_DH_KEY_PAIR_GEN and the
