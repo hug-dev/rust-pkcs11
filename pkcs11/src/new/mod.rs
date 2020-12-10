@@ -251,12 +251,17 @@ mod tests {
     use crate::new::types::session::UserType;
     use crate::new::types::Flags;
     use crate::new::Pkcs11;
+    use crate::new::Slot;
+    use std::env;
     use std::sync::Arc;
     use std::thread;
 
-    #[test]
-    fn sign_verify() {
-        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
+    fn init_pins() -> (Pkcs11, Slot) {
+        let pkcs11 = Pkcs11::new(
+            env::var("PKCS11_SOFTHSM2_MODULE")
+                .unwrap_or_else(|_| "/usr/local/lib/softhsm/libsofthsm2.so".to_string()),
+        )
+        .unwrap();
 
         // initialize the library
         pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
@@ -264,14 +269,35 @@ mod tests {
         // find a slot, get the first one
         let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
 
+        pkcs11.init_token(slot, "1234").unwrap();
+        pkcs11.set_pin(slot, "1234").unwrap();
+
+        // set flags
+        let mut flags = Flags::new();
+        flags.set_rw_session(true).set_serial_session(true);
+
+        {
+            // open a session
+            let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
+            // log in the session
+            session.login(UserType::So).unwrap();
+            session.init_pin("1234").unwrap();
+        }
+
+        (pkcs11, slot)
+    }
+
+    #[test]
+    #[serial]
+    fn sign_verify() {
+        let (pkcs11, slot) = init_pins();
+
         // set flags
         let mut flags = Flags::new();
         flags.set_rw_session(true).set_serial_session(true);
 
         // open a session
         let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
-
-        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
         session.login(UserType::User).unwrap();
@@ -315,14 +341,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn encrypt_decrypt() {
-        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
-
-        // initialize the library
-        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
-
-        // find a slot, get the first one
-        let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+        let (pkcs11, slot) = init_pins();
 
         // set flags
         let mut flags = Flags::new();
@@ -330,8 +351,6 @@ mod tests {
 
         // open a session
         let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
-
-        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
         session.login(UserType::User).unwrap();
@@ -382,14 +401,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn import_export() {
-        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
-
-        // initialize the library
-        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
-
-        // find a slot, get the first one
-        let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+        let (pkcs11, slot) = init_pins();
 
         // set flags
         let mut flags = Flags::new();
@@ -397,8 +411,6 @@ mod tests {
 
         // open a session
         let session = pkcs11.open_session_no_callback(slot, flags).unwrap();
-
-        pkcs11.set_pin(slot, "123456").unwrap();
 
         // log in the session
         session.login(UserType::User).unwrap();
@@ -450,21 +462,15 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn login_feast() {
-        let pkcs11 = Pkcs11::new("/usr/local/lib/softhsm/libsofthsm2.so").unwrap();
         const SESSIONS: usize = 100;
 
-        // initialize the library
-        pkcs11.initialize(CInitializeArgs::OsThreads).unwrap();
-
-        // find a slot, get the first one
-        let slot = pkcs11.get_slots_with_token().unwrap().remove(0);
+        let (pkcs11, slot) = init_pins();
 
         // set flags
         let mut flags = Flags::new();
         flags.set_rw_session(true).set_serial_session(true);
-
-        pkcs11.set_pin(slot, "123456").unwrap();
 
         let pkcs11 = Arc::from(pkcs11);
         let mut threads = Vec::new();

@@ -3,7 +3,10 @@ use crate::new::types::function::Rv;
 use crate::new::types::slot_token::Slot;
 use crate::new::Pkcs11;
 use crate::new::Result;
+use crate::new::Session;
+use secrecy::{ExposeSecret, Secret};
 use std::convert::TryInto;
+use std::ffi::CString;
 
 impl Pkcs11 {
     pub fn get_slots_with_token(&self) -> Result<Vec<Slot>> {
@@ -66,5 +69,39 @@ impl Pkcs11 {
         slots.resize(slot_count.try_into()?, Slot::new(0));
 
         Ok(slots)
+    }
+
+    /// Initialize a token
+    ///
+    /// Currently will use an empty label for all tokens.
+    pub fn init_token(&self, slot: Slot, pin: &str) -> Result<()> {
+        let pin = Secret::new(CString::new(pin)?.into_bytes());
+        // FIXME: make a good conversion to the label format
+        // 32 is the ASCII code for ' '
+        let label = [b' '; 32];
+        unsafe {
+            Rv::from(get_pkcs11!(self, C_InitToken)(
+                slot.id(),
+                pin.expose_secret().as_ptr() as *mut u8,
+                pin.expose_secret().len().try_into()?,
+                label.as_ptr() as *mut u8,
+            ))
+            .into_result()
+        }
+    }
+}
+
+impl<'a> Session<'a> {
+    /// Initialize the normal user's pin for a token
+    pub fn init_pin(&self, pin: &str) -> Result<()> {
+        let pin = Secret::new(CString::new(pin)?.into_bytes());
+        unsafe {
+            Rv::from(get_pkcs11!(self.client(), C_InitPIN)(
+                self.handle(),
+                pin.expose_secret().as_ptr() as *mut u8,
+                pin.expose_secret().len().try_into()?,
+            ))
+            .into_result()
+        }
     }
 }
