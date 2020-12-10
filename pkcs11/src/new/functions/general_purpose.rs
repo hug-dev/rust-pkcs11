@@ -1,3 +1,5 @@
+//! General-purpose functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::locking::CInitializeArgs;
@@ -7,6 +9,7 @@ use pkcs11_sys::CK_C_INITIALIZE_ARGS;
 use std::ptr;
 
 impl Pkcs11 {
+    /// Initialize the PKCS11 library
     pub fn initialize(&self, init_args: CInitializeArgs) -> Result<()> {
         // if no args are specified, library expects NULL
         let mut init_args = CK_C_INITIALIZE_ARGS::from(init_args);
@@ -25,5 +28,7 @@ impl Pkcs11 {
         unsafe { Rv::from(get_pkcs11!(self, C_Finalize)(ptr::null_mut())).into_result() }
     }
 
+    /// Finalize the PKCS11 library. Indicates that the application no longer needs to use PKCS11.
+    /// The library is also automatically finalized on drop.
     pub fn finalize(self) {}
 }

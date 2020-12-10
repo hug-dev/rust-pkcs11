@@ -1,3 +1,5 @@
+//! Decrypting data
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
@@ -8,6 +10,7 @@ use pkcs11_sys::*;
 use std::convert::TryInto;
 
 impl<'a> Session<'a> {
+    /// Single-part decryption operation
     pub fn decrypt(
         &self,
         mechanism: &Mechanism,

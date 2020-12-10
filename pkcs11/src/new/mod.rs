@@ -1,3 +1,11 @@
+//! Rust PKCS11 new abstraction
+//!
+//! The items in the new module only expose idiomatic and safe Rust types and functions to
+//! interface with the PKCS11 API. All the PKCS11 items might not be implemented but everything
+//! that is implemented is safe.
+//!
+//! The modules under `new` follow the structure of the PKCS11 document version 2.40 available [here](http://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/pkcs11-base-v2.40.html).
+
 pub mod functions;
 pub mod objects;
 pub mod types;
@@ -26,6 +34,7 @@ macro_rules! get_pkcs11 {
     };
 }
 
+/// Main PKCS11 context. Should usually be unique per application.
 pub struct Pkcs11 {
     // Even if this field is never read, it is needed for the pointers in function_list to remain
     // valid.
@@ -38,6 +47,7 @@ pub struct Pkcs11 {
 }
 
 impl Pkcs11 {
+    /// Instantiate a new context from the path of a PKCS11 dynamic llibrary implementation.
     pub fn new<P>(filename: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -60,8 +70,9 @@ impl Pkcs11 {
         }
     }
 
-    // The pin set is the one that is going to be use with all user type specified when logging in.
-    // It needs to be changed before calling login with a different user type.
+    /// Set the PIN used when logging in sessions.
+    /// The pin set is the one that is going to be use with all user type specified when logging in.
+    /// It needs to be changed before calling login with a different user type.
     pub fn set_pin(&self, slot: Slot, pin: &str) -> Result<()> {
         let _ = self
             .pins
@@ -71,7 +82,9 @@ impl Pkcs11 {
         Ok(())
     }
 
-    // Ignore if the pin was not set previously on the slot
+    /// Clear the pin store.
+    /// Ignore if the pin was not set previously on the slot. Note that the pin will be cleared
+    /// anyway on drop.
     pub fn clear_pin(&self, slot: Slot) {
         // The removed pin will be zeroized on drop as it is a SecretVec
         let _ = self.pins.write().expect("Pins lock poisoned").remove(&slot);
@@ -140,6 +153,7 @@ impl Pkcs11 {
 }
 
 #[derive(Debug)]
+/// Main error type
 pub enum Error {
     /// Any error that happens during library loading of the PKCS#11 module is encompassed under
     /// this error. It is a direct forward of the underlying error from libloading.
@@ -154,16 +168,19 @@ pub enum Error {
     /// Error happening while converting types
     TryFromInt(std::num::TryFromIntError),
 
+    /// Error when converting a slice to an array
     TryFromSlice(std::array::TryFromSliceError),
 
+    /// Error with nul characters in Strings
     NulError(std::ffi::NulError),
 
-    BufferTooBig,
-
+    /// Calling a PKCS11 function that is a NULL function pointer.
     NullFunctionPointer,
 
+    /// The value is not one of those expected.
     InvalidValue,
 
+    /// The PIN was not set before logging in.
     PinNotSet,
 }
 
@@ -176,7 +193,6 @@ impl fmt::Display for Error {
             Error::TryFromInt(e) => write!(f, "Conversion between integers failed ({})", e),
             Error::TryFromSlice(e) => write!(f, "Error converting slice to array ({})", e),
             Error::NulError(e) => write!(f, "An interior nul byte was found ({})", e),
-            Error::BufferTooBig => write!(f, "The buffer given for the attribute was too big"),
             Error::NullFunctionPointer => write!(f, "Calling a NULL function pointer"),
             Error::InvalidValue => write!(f, "The value is not one of the expected options"),
             Error::PinNotSet => write!(f, "Pin has not been set before trying to log in"),
@@ -191,8 +207,7 @@ impl std::error::Error for Error {
             Error::TryFromInt(e) => Some(e),
             Error::TryFromSlice(e) => Some(e),
             Error::NulError(e) => Some(e),
-            Error::BufferTooBig
-            | Error::Pkcs11(_)
+            Error::Pkcs11(_)
             | Error::NotSupported
             | Error::NullFunctionPointer
             | Error::PinNotSet
@@ -239,6 +254,7 @@ impl Drop for Pkcs11 {
     }
 }
 
+/// Main Result type
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[cfg(test)]

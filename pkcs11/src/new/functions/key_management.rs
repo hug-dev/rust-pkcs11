@@ -1,13 +1,16 @@
+//! Key management functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
 use crate::new::types::object::{Attribute, ObjectHandle};
 use crate::new::types::session::Session;
-use crate::new::{Error, Result};
+use crate::new::Result;
 use pkcs11_sys::{CK_ATTRIBUTE, CK_MECHANISM, CK_MECHANISM_PTR};
 use std::convert::TryInto;
 
 impl<'a> Session<'a> {
+    /// Generate a public/private key pair
     pub fn generate_key_pair(
         &self,
         mechanism: &Mechanism,
@@ -39,56 +42,5 @@ impl<'a> Session<'a> {
             ObjectHandle::new(pub_handle),
             ObjectHandle::new(priv_handle),
         ))
-    }
-
-    pub fn generate_key(
-        &self,
-        mechanism: &Mechanism,
-        key_template: &[Attribute],
-    ) -> Result<ObjectHandle> {
-        let mut mechanism: CK_MECHANISM = mechanism.into();
-        let mut key_template: Vec<CK_ATTRIBUTE> =
-            key_template.iter().map(|attr| attr.into()).collect();
-        let mut handle = 0;
-        unsafe {
-            Rv::from(get_pkcs11!(self.client(), C_GenerateKey)(
-                self.handle(),
-                &mut mechanism as CK_MECHANISM_PTR,
-                key_template.as_mut_ptr(),
-                key_template.len().try_into()?,
-                &mut handle,
-            ))
-            .into_result()?;
-        }
-
-        Ok(ObjectHandle::new(handle))
-    }
-
-    pub fn wrap_key(
-        &self,
-        _mechanism: &Mechanism,
-        _wrapping_key: ObjectHandle,
-        _wrapped_key: ObjectHandle,
-    ) -> Result<Vec<u8>> {
-        Err(Error::NotSupported)
-    }
-
-    pub fn unwrap_key(
-        &self,
-        _mechanism: &Mechanism,
-        _unwrapping_key: ObjectHandle,
-        _wrapped_key: &[u8],
-        _wrapped_key_template: &[Attribute],
-    ) -> Result<ObjectHandle> {
-        Err(Error::NotSupported)
-    }
-
-    pub fn derive_key(
-        &self,
-        _mechanism: &Mechanism,
-        _base_key: ObjectHandle,
-        _derived_key_template: &[Attribute],
-    ) -> Result<ObjectHandle> {
-        Err(Error::NotSupported)
     }
 }

@@ -1,3 +1,5 @@
+//! PKCS11 functions
+
 pub mod decryption;
 pub mod encryption;
 pub mod general_purpose;

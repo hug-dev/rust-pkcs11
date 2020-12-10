@@ -1,3 +1,5 @@
+//! Object types
+
 use crate::new::types::mechanism::MechanismType;
 use crate::new::types::{Bbool, Ulong};
 use crate::new::{Error, Result};
@@ -9,33 +11,61 @@ use std::ffi::c_void;
 use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone)]
+/// Type of an attribute
 pub enum AttributeType {
+    /// List of mechanisms allowed to be used with the key
     AllowedMechanisms,
+    /// Base number value of a key
     Base,
+    /// Type of an object
     Class,
+    /// Determines if an object can be copied
     Copyable,
+    /// Determines if a key supports decryption
     Decrypt,
+    /// Determines if it is possible to derive other keys from the key
     Derive,
+    /// Determines if a key supports encryption
     Encrypt,
+    /// Determines if a key is extractable and can be wrapped
     Extractable,
+    /// Key identifier for key
     Id,
+    /// Type of a key
     KeyType,
+    /// Description of the object
     Label,
+    /// Determines if the object can be modified
     Modifiable,
+    /// Modulus value of a key
     Modulus,
+    /// Length in bits of the modulus of a key
     ModulusBits,
+    /// Prime number value of a key
     Prime,
+    /// Determines if the object is private
     Private,
+    /// Public exponent value of a key
     PublicExponent,
+    /// Determines if the key is sensitive
     Sensitive,
+    /// Determines if a key supports signing
     Sign,
+    /// Determines if a key supports signing where the data can be recovered from the signature
     SignRecover,
+    /// Determines if the object is a token object
     Token,
+    /// Determines if a key supports unwrapping
     Unwrap,
+    /// Value of the object
     Value,
+    /// Length in bytes of the value
     ValueLen,
+    /// Determines if a key supports verifying
     Verify,
+    /// Determines if a key supports verifying where the data can be recovered from the signature
     VerifyRecover,
+    /// Determines if a key supports wrapping
     Wrap,
 }
 
@@ -114,37 +144,66 @@ impl TryFrom<CK_ATTRIBUTE_TYPE> for AttributeType {
 }
 
 #[derive(Debug, Clone)]
+/// Attribute value
 pub enum Attribute {
+    /// List of mechanisms allowed to be used with the key
     AllowedMechanisms(Vec<MechanismType>),
+    /// Base number value of a key
     Base(Vec<u8>),
+    /// Type of an object
     Class(ObjectClass),
+    /// Determines if an object can be copied
     Copyable(Bbool),
+    /// Determines if a key supports decryption
     Decrypt(Bbool),
+    /// Determines if it is possible to derive other keys from the key
     Derive(Bbool),
+    /// Determines if a key supports encryption
     Encrypt(Bbool),
+    /// Determines if a key is extractable and can be wrapped
     Extractable(Bbool),
+    /// Key identifier for key
     Id(Vec<u8>),
+    /// Type of a key
     KeyType(KeyType),
+    /// Description of the object
     Label(Vec<u8>),
+    /// Determines if the object can be modified
     Modifiable(Bbool),
+    /// Modulus value of a key
     Modulus(Vec<u8>),
+    /// Length in bits of the modulus of a key
     ModulusBits(Ulong),
+    /// Prime number value of a key
     Prime(Vec<u8>),
+    /// Determines if the object is private
     Private(Bbool),
+    /// Public exponent value of a key
     PublicExponent(Vec<u8>),
+    /// Determines if the key is sensitive
     Sensitive(Bbool),
+    /// Determines if a key supports signing
     Sign(Bbool),
+    /// Determines if a key supports signing where the data can be recovered from the signature
     SignRecover(Bbool),
+    /// Determines if the object is a token object
     Token(Bbool),
+    /// Determines if a key supports unwrapping
     Unwrap(Bbool),
+    /// Value of the object
     Value(Vec<u8>),
+    /// Length in bytes of the value
     ValueLen(Ulong),
+    /// Determines if a key supports verifying
     Verify(Bbool),
+    /// Determines if a key supports verifying where the data can be recovered from the signature
     VerifyRecover(Bbool),
+    /// Determines if a key supports wrapping
     Wrap(Bbool),
 }
 
 impl Attribute {
+    /// Get the type of an attribute
     pub fn attribute_type(&self) -> AttributeType {
         match self {
             Attribute::AllowedMechanisms(_) => AttributeType::AllowedMechanisms,
@@ -342,6 +401,7 @@ impl TryFrom<CK_ATTRIBUTE> for Attribute {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Token specific identifier for an object
 pub struct ObjectHandle {
     handle: CK_OBJECT_HANDLE,
 }
@@ -358,14 +418,17 @@ impl ObjectHandle {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(transparent)]
+/// Identifier of the class of an object
 pub struct ObjectClass {
     val: CK_OBJECT_CLASS,
 }
 
 impl ObjectClass {
+    /// Public key object
     pub const PUBLIC_KEY: ObjectClass = ObjectClass {
         val: CKO_PUBLIC_KEY,
     };
+    /// Private key object
     pub const PRIVATE_KEY: ObjectClass = ObjectClass {
         val: CKO_PRIVATE_KEY,
     };
@@ -401,11 +464,13 @@ impl TryFrom<CK_OBJECT_CLASS> for ObjectClass {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
+/// Key type
 pub struct KeyType {
     val: CK_KEY_TYPE,
 }
 
 impl KeyType {
+    /// RSA key
     pub const RSA: KeyType = KeyType { val: CKK_RSA };
 }
 
@@ -438,7 +503,10 @@ impl TryFrom<CK_KEY_TYPE> for KeyType {
 }
 
 #[derive(Debug, Copy, Clone)]
+/// Information about the attribute of an object
 pub enum AttributeInfo {
+    /// The attribute is not defined for the object
     Unavailable,
+    /// The attribute is available to get from the object and has the specified size in bytes.
     Available(usize),
 }

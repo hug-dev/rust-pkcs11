@@ -1,3 +1,5 @@
+//! Object management functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::{Rv, RvError};
 use crate::new::types::object::{Attribute, AttributeInfo, AttributeType, ObjectHandle};
@@ -10,6 +12,7 @@ use std::convert::TryInto;
 const MAX_OBJECT_COUNT: usize = 10;
 
 impl<'a> Session<'a> {
+    /// Search for session objects matching a template
     pub fn find_objects(&self, template: &[Attribute]) -> Result<Vec<ObjectHandle>> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
 
@@ -62,6 +65,7 @@ impl<'a> Session<'a> {
         Ok(objects)
     }
 
+    /// Create a new object
     pub fn create_object(&self, template: &[Attribute]) -> Result<ObjectHandle> {
         let mut template: Vec<CK_ATTRIBUTE> = template.iter().map(|attr| attr.into()).collect();
         let mut object_handle = 0;
@@ -79,6 +83,7 @@ impl<'a> Session<'a> {
         Ok(ObjectHandle::new(object_handle))
     }
 
+    /// Destroy an object
     pub fn destroy_object(&self, object: ObjectHandle) -> Result<()> {
         unsafe {
             Rv::from(get_pkcs11!(self.client(), C_DestroyObject)(
@@ -89,6 +94,7 @@ impl<'a> Session<'a> {
         }
     }
 
+    /// Get the attribute info of an object: if the attribute is present and its size.
     pub fn get_attribute_info(
         &self,
         object: ObjectHandle,
@@ -124,8 +130,9 @@ impl<'a> Session<'a> {
         }
     }
 
-    // Ignore the unavailable one. One has to call the get_attribute_info method to check which
-    // ones are unavailable.
+    /// Get the attributes values of an object.
+    /// Ignore the unavailable one. One has to call the get_attribute_info method to check which
+    /// ones are unavailable.
     pub fn get_attributes(
         &self,
         object: ObjectHandle,

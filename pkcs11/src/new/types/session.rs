@@ -1,8 +1,16 @@
+//! Session types
+
 use crate::new::types::slot_token::Slot;
 use crate::new::Pkcs11;
 use log::error;
 use pkcs11_sys::*;
 
+/// Type that identifies a session
+///
+/// It will automatically get closed (and logout) on drop.
+/// Session does not implement Sync to prevent the same Session instance to be used from multiple
+/// threads. A Session needs to be created in its own thread or to be passed by ownership to
+/// another thread.
 pub struct Session<'a> {
     handle: CK_SESSION_HANDLE,
     client: &'a Pkcs11,
@@ -52,9 +60,13 @@ impl Drop for Session<'_> {
     }
 }
 
+/// Types of PKCS11 users
 pub enum UserType {
+    /// Security Officer
     So,
+    /// User
     User,
+    /// Context Specific
     ContextSpecific,
 }
 

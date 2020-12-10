@@ -1,3 +1,5 @@
+//! Encrypting data
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
@@ -8,6 +10,7 @@ use pkcs11_sys::*;
 use std::convert::TryInto;
 
 impl<'a> Session<'a> {
+    /// Single-part encryption operation
     pub fn encrypt(
         &self,
         mechanism: &Mechanism,

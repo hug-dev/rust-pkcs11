@@ -1,3 +1,5 @@
+//! Slot and token management functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::slot_token::Slot;
@@ -6,6 +8,7 @@ use crate::new::Result;
 use std::convert::TryInto;
 
 impl Pkcs11 {
+    /// Get all slots available with a token
     pub fn get_slots_with_token(&self) -> Result<Vec<Slot>> {
         let mut slot_count = 0;
 
@@ -37,6 +40,7 @@ impl Pkcs11 {
         Ok(slots)
     }
 
+    /// Get all slots
     pub fn get_all_slots(&self) -> Result<Vec<Slot>> {
         let mut slot_count = 0;
 

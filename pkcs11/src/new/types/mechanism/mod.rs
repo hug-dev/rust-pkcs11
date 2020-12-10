@@ -1,3 +1,5 @@
+//! Data types for mechanisms
+
 pub mod rsa;
 
 use crate::new::Error;
@@ -11,6 +13,7 @@ use std::ptr::null_mut;
 #[derive(Debug, Clone, PartialEq, Eq)]
 // transparent so that a vector of MechanismType should have the same layout than a vector of
 // CK_MECHANISM_TYPE.
+/// Type of a mechanism
 #[repr(transparent)]
 pub struct MechanismType {
     val: CK_MECHANISM_TYPE,
@@ -18,21 +21,32 @@ pub struct MechanismType {
 
 impl MechanismType {
     // RSA
+    /// PKCS #1 RSA key pair generation mechanism
     pub const RSA_PKCS_KEY_PAIR_GEN: MechanismType = MechanismType {
         val: CKM_RSA_PKCS_KEY_PAIR_GEN,
     };
+    /// Multi-purpose mechanism based on the RSA public-key cryptosystem and the block formats
+    /// initially defined in PKCS #1 v1.5
     pub const RSA_PKCS: MechanismType = MechanismType { val: CKM_RSA_PKCS };
+    /// Mechanism based on the RSA public-key cryptosystem and the PSS block format defined in PKCS
+    /// #1
     pub const RSA_PKCS_PSS: MechanismType = MechanismType {
         val: CKM_RSA_PKCS_PSS,
     };
+    /// Multi-purpose mechanism based on the RSA public-key cryptosystem and the OAEP block format
+    /// defined in PKCS #1
     pub const RSA_PKCS_OAEP: MechanismType = MechanismType {
         val: CKM_RSA_PKCS_OAEP,
     };
 
     // SHA-n
+    /// SHA-1 mechanism
     pub const SHA1: MechanismType = MechanismType { val: CKM_SHA_1 };
+    /// SHA-256 mechanism
     pub const SHA256: MechanismType = MechanismType { val: CKM_SHA256 };
+    /// SHA-384 mechanism
     pub const SHA384: MechanismType = MechanismType { val: CKM_SHA384 };
+    /// SHA-512 mechanism
     pub const SHA512: MechanismType = MechanismType { val: CKM_SHA512 };
 }
 
@@ -72,21 +86,34 @@ impl TryFrom<CK_MECHANISM_TYPE> for MechanismType {
 }
 
 #[derive(Debug, Clone)]
+/// Type defining a specific mechanism and its parameters
 pub enum Mechanism {
     // RSA
+    /// PKCS #1 RSA key pair generation mechanism
     RsaPkcsKeyPairGen,
+    /// Multi-purpose mechanism based on the RSA public-key cryptosystem and the block formats
+    /// initially defined in PKCS #1 v1.5
     RsaPkcs,
+    /// Mechanism based on the RSA public-key cryptosystem and the PSS block format defined in PKCS
+    /// #1
     RsaPkcsPss(rsa::PkcsPssParams),
+    /// Multi-purpose mechanism based on the RSA public-key cryptosystem and the OAEP block format
+    /// defined in PKCS #1
     RsaPkcsOaep(rsa::PkcsOaepParams),
 
     // SHA-n
+    /// SHA-1 mechanism
     Sha1,
+    /// SHA-256 mechanism
     Sha256,
+    /// SHA-384 mechanism
     Sha384,
+    /// SHA-512 mechanism
     Sha512,
 }
 
 impl Mechanism {
+    /// Get the type of a mechanism
     pub fn mechanism_type(&self) -> MechanismType {
         match self {
             Mechanism::RsaPkcsKeyPairGen => MechanismType::RSA_PKCS_KEY_PAIR_GEN,

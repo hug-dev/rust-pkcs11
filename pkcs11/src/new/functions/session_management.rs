@@ -1,3 +1,5 @@
+//! Session management functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::session::{Session, UserType};
@@ -7,6 +9,7 @@ use crate::new::Pkcs11;
 use crate::new::Result;
 
 impl Pkcs11 {
+    /// Open a new session with no callback set
     pub fn open_session_no_callback(&self, slot_id: Slot, flags: Flags) -> Result<Session> {
         let mut session_handle = 0;
 
@@ -27,19 +30,26 @@ impl Pkcs11 {
 }
 
 impl<'a> Session<'a> {
+    /// Close a session
+    /// This will be called on drop as well.
     pub fn close(&self) {}
 
     pub(crate) fn close_private(&self) -> Result<()> {
         unsafe { Rv::from(get_pkcs11!(self.client(), C_CloseSession)(self.handle())).into_result() }
     }
 
-    // Do not fail if the user is already logged in. It happens if another session on the same slot
-    // has already called the log in operation. Record the login call and only log out when there
-    // aren't anymore sessions requiring log in state.
+    /// Log a session in
+    ///
+    /// Do not fail if the user is already logged in. It happens if another session on the same slot
+    /// has already called the log in operation. Record the login call and only log out when there
+    /// aren't anymore sessions requiring log in state.
     pub fn login(&self, user_type: UserType) -> Result<()> {
         self.client().login(self, user_type)
     }
 
+    /// Log a session out
+    ///
+    /// Will also be called on drop.
     pub fn logout(&self) -> Result<()> {
         self.client().logout(self)
     }

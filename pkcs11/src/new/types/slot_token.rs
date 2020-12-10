@@ -1,6 +1,9 @@
+//! Slot and token types
+
 use pkcs11_sys::CK_SLOT_ID;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Type identifying a slot
 pub struct Slot {
     slot_id: u64,
 }
@@ -10,6 +13,7 @@ impl Slot {
         Slot { slot_id }
     }
 
+    /// Underlying ID used for a slot
     pub fn id(&self) -> u64 {
         self.slot_id
     }

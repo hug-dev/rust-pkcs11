@@ -1,3 +1,5 @@
+//! Signing and authentication functions
+
 use crate::get_pkcs11;
 use crate::new::types::function::Rv;
 use crate::new::types::mechanism::Mechanism;
@@ -8,6 +10,7 @@ use pkcs11_sys::*;
 use std::convert::TryInto;
 
 impl<'a> Session<'a> {
+    /// Sign data in single-part
     pub fn sign(&self, mechanism: &Mechanism, key: ObjectHandle, data: &[u8]) -> Result<Vec<u8>> {
         let mut mechanism: CK_MECHANISM = mechanism.into();
         let mut signature_len = 0;
@@ -52,6 +55,7 @@ impl<'a> Session<'a> {
         Ok(signature)
     }
 
+    /// Verify data in single-part
     pub fn verify(
         &self,
         mechanism: &Mechanism,
